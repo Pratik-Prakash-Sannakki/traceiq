@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import httpx
-from traceiq.adapters.base import TraceAdapter
+from traceiq.adapters.base import TraceAdapter, SpanContent
 from traceiq.models import TraceInfo, Span
 
 class PhoenixAdapter(TraceAdapter):
@@ -11,12 +11,11 @@ class PhoenixAdapter(TraceAdapter):
         self._client = httpx.AsyncClient(base_url=self._base, timeout=30.0)
 
     def _parse_latency(self, start: str, end: str) -> float:
-        fmt = "%Y-%m-%dT%H:%M:%S.%f+00:00"
         try:
-            s = datetime.strptime(start, fmt).replace(tzinfo=timezone.utc)
-            e = datetime.strptime(end, fmt).replace(tzinfo=timezone.utc)
+            s = datetime.fromisoformat(start)
+            e = datetime.fromisoformat(end)
             return (e - s).total_seconds() * 1000
-        except Exception:
+        except (ValueError, TypeError):
             return 0.0
 
     async def list_traces(self, limit: int = 50) -> list[TraceInfo]:
@@ -49,9 +48,7 @@ class PhoenixAdapter(TraceAdapter):
         data = resp.json().get("data", [])
 
         # Fallback: filter client-side if server filter not supported
-        all_ids = [s.get("context", {}).get("trace_id") for s in data]
-        if data and all_ids[0] != trace_id:
-            data = [s for s in data if s.get("context", {}).get("trace_id") == trace_id]
+        data = [s for s in data if s.get("context", {}).get("trace_id") == trace_id]
 
         spans = []
         for raw in data:
@@ -79,7 +76,7 @@ class PhoenixAdapter(TraceAdapter):
             ))
         return spans
 
-    async def get_span_content(self, span: Span) -> dict:
+    async def get_span_content(self, span: Span) -> SpanContent:
         resp = await self._client.get(
             f"/v1/projects/{self._project}/spans",
             params={"limit": 500, "filter": f'trace_id = "{span.trace_id}"'},
