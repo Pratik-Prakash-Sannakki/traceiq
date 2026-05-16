@@ -4,4 +4,9 @@ version = "0.1.0"
 description = "Framework-agnostic AI-powered trace analyzer for LLM systems"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "arize-phoenix>=15.10.0",
+    "openinference-instrumentation>=0.1.51",
+    "opentelemetry-exporter-otlp-proto-http>=1.41.1",
+    "opentelemetry-sdk>=1.41.1",
+]
