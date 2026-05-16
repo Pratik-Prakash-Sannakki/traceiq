@@ -1,0 +1,7 @@
+[project]
+name = "traceiq"
+version = "0.1.0"
+description = "Framework-agnostic AI-powered trace analyzer for LLM systems"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
