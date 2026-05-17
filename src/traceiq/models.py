@@ -70,3 +70,44 @@ class AnalysisResult:
     summary: str
     analyzed_at: str
     flags: list[Flag] = field(default_factory=list)
+
+
+@dataclass
+class Community:
+    community_id: str
+    span_ids: list[str]
+    label: str          # inferred from dominant span type/name
+
+
+@dataclass
+class CommunityCard:
+    community_id: str
+    label: str
+    span_count: int
+    span_types: list[str]       # unique span_kind values in community
+    iteration_count: int        # 1 if not a loop, N if agent loop detected
+    avg_latency_ms: float
+    total_latency_ms: float
+    error_count: int
+    flagged_span_ids: list[str] # span_ids flagged by AnomalyDetector in this community
+    token_growth: dict          # {"first": int, "last": int} — empty dict if no LLM spans
+    anomalies: list[str]        # descriptive labels e.g. "token_spike_at_iteration_4"
+
+
+@dataclass
+class IterationDelta:
+    iteration_index: int
+    span_id: str
+    reason: str         # "baseline" | "final" | "anomaly:<rule>" | "error"
+    latency_ms: float
+    token_count: int
+    has_error: bool
+    error_message: str | None
+
+
+@dataclass
+class CompressedLoop:
+    community_id: str
+    total_iterations: int
+    kept_iterations: list[IterationDelta]
+    skipped_count: int
