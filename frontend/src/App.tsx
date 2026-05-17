@@ -8,7 +8,7 @@ import { IssuePanel } from './components/IssuePanel'
 import { Chat } from './components/Chat'
 import { Settings } from './components/Settings'
 import { cn } from './lib/utils'
-import { traceStatus, formatTokens, isHighTokenCount } from './lib/tokens'
+import { formatTokens, isHighTokenCount } from './lib/tokens'
 
 export default function App() {
   const [traces, setTraces]         = useState<TraceInfo[]>([])
