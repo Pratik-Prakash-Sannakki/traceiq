@@ -1,5 +1,17 @@
 import pytest
 from traceiq.models import Span
+import traceiq.api.pipeline as pipeline_module
+
+@pytest.fixture(autouse=True)
+def reset_pipeline_singletons():
+    """Reset pipeline singletons before and after each test to prevent leakage."""
+    pipeline_module._adapter = None
+    pipeline_module._cache = None
+    pipeline_module._engine = None
+    yield
+    pipeline_module._adapter = None
+    pipeline_module._cache = None
+    pipeline_module._engine = None
 
 def make_span(
     span_id: str = "s1",
