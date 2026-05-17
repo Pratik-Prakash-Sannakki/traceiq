@@ -117,7 +117,7 @@ class AgentAnalyzer:
         loops: list[CompressedLoop],
         flags: list[Flag],
     ) -> AnalysisResult:
-        initial_prompt = self._build_initial_prompt(cards, loops, flags)
+        initial_prompt = self._build_initial_prompt(cards, loops)
         messages = [{"role": "user", "content": initial_prompt}]
 
         for _ in range(MAX_TURNS):
@@ -163,6 +163,16 @@ class AgentAnalyzer:
 
                 messages.append({"role": "user", "content": tool_results})
 
+            # Handle max_tokens — treat as end_turn with whatever text was generated
+            if response.stop_reason == "max_tokens":
+                text_blocks = [b.text for b in response.content if hasattr(b, "text")]
+                raw = " ".join(text_blocks)
+                if raw.strip():
+                    return self._parse_result(trace_id, raw, flags)
+                # No usable text — continue to next turn with a nudge
+                messages.append({"role": "user", "content": "Please call finish_analysis with your current findings."})
+                continue
+
         return AnalysisResult(
             trace_id=trace_id, issues=[],
             root_cause="Analysis incomplete: maximum turn limit reached.",
@@ -171,7 +181,7 @@ class AgentAnalyzer:
         )
 
     def _build_initial_prompt(self, cards: list[CommunityCard],
-                               loops: list[CompressedLoop], flags: list[Flag]) -> str:
+                               loops: list[CompressedLoop]) -> str:
         loop_map = {l.community_id: l for l in loops}
         parts = ["## Trace Community Overview\n"]
         for card in cards:
@@ -320,10 +330,18 @@ class AgentAnalyzer:
                 summary="Could not parse the agent's final analysis. Try re-analyzing.",
                 analyzed_at=datetime.now(timezone.utc).isoformat(), flags=flags,
             )
-        issues = [Issue(id=i["id"], category=i["category"], severity=i["severity"],
-                        span_id=i["span_id"], span_name=i["span_name"],
-                        explanation=i["explanation"], suggestion=i["suggestion"])
-                  for i in data.get("issues", [])]
+        issues = [
+            Issue(
+                id=i.get("id", "issue-unknown"),
+                category=i.get("category", "logic"),
+                severity=i.get("severity", "info"),
+                span_id=i.get("span_id", ""),
+                span_name=i.get("span_name", ""),
+                explanation=i.get("explanation", ""),
+                suggestion=i.get("suggestion", ""),
+            )
+            for i in data.get("issues", [])
+        ]
         return AnalysisResult(
             trace_id=trace_id, issues=issues,
             root_cause=data.get("root_cause", ""),

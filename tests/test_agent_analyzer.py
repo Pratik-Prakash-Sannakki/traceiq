@@ -100,3 +100,29 @@ async def test_unparseable_response_returns_graceful_fallback():
     assert isinstance(result, AnalysisResult)
     assert result.issues == []
     assert "failed" in result.root_cause.lower() or "unparseable" in result.root_cause.lower()
+
+@pytest.mark.asyncio
+async def test_max_turns_returns_graceful_fallback():
+    spans = [make_span("s1")]
+    cards = [_make_card()]
+    loops = [_make_loop()]
+
+    analyzer = AgentAnalyzer(api_key="test-key")
+
+    # Every response is a tool_use (not finish_analysis) — forces max turns
+    mock_response = MagicMock()
+    mock_response.stop_reason = "tool_use"
+    tool_block = MagicMock()
+    tool_block.type = "tool_use"
+    tool_block.name = "search_spans"
+    tool_block.id = "tu_001"
+    tool_block.input = {"query": "agent"}
+    mock_response.content = [tool_block]
+
+    with patch.object(analyzer._client.messages, "create", new_callable=AsyncMock) as mock_create:
+        mock_create.return_value = mock_response
+        result = await analyzer.analyze("t1", spans, cards, loops, [])
+
+    assert isinstance(result, AnalysisResult)
+    assert result.issues == []
+    assert "turn limit" in result.root_cause.lower() or "incomplete" in result.root_cause.lower()
