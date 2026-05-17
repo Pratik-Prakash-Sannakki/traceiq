@@ -1,23 +1,195 @@
 # TraceIQ — Design Spec
-**Date:** 2026-05-16
-**Status:** Approved for Phase 2 implementation
+**Date:** 2026-05-16 (updated 2026-05-17)
+**Status:** Phase 2 shipped. Tier 2 large trace analysis in design.
 
 ---
 
 ## Problem
 
-LLM systems (agents, RAG pipelines) fail silently. Existing trace stores (Langfuse, Arize Phoenix, LangSmith) collect spans but provide no AI-powered analysis layer. Developers have to read raw JSON to find root causes. At scale, patterns across thousands of traces are invisible.
+LLM systems (agents, RAG pipelines) fail silently. Existing trace stores (Langfuse, Arize Phoenix, LangSmith) collect spans but provide no AI-powered analysis layer. Developers have to read raw JSON to find root causes.
 
 **TraceIQ is a framework-agnostic, Claude-powered trace analyzer** that connects to existing trace stores, builds an interaction graph per trace, and uses AI to surface root causes, annotate issues, and enable conversational debugging.
 
 ---
 
-## Feasibility Basis
+## The Scaling Problem (Discovered in Production)
 
-- **LLMRCA (ACM 2025):** Heterogeneous causal graph from traces → 92.86% top-1 RCA accuracy, 5.1× better than baselines
-- **SentinelAgent (arXiv May 2026):** Directed interaction graph for multi-agent systems → detects loops, errors, collusive delegation
-- **LazyGraphRAG (Microsoft):** Deferred graph construction at query time → 0.1% cost of full GraphRAG at comparable quality
-- **Empirical:** Synthetic Phoenix traces measured at 7–9 KB raw JSON, 12–18 spans. Graph structure is always small; content payload is what grows.
+Empirical measurement of a real production trace (faculty scraper, `325b79f92c9b00c6096b5aafba3d0443`):
+
+| Metric | Value |
+|---|---|
+| Spans | 172 |
+| Raw JSON size | 9.8 MB |
+| Total content (inputs + outputs) | 7.58 MB |
+| Avg content per span | 44 KB |
+| Estimated tokens | ~1.94M |
+| Claude context limit | ~200K tokens |
+| Overflow factor | **9.7×** |
+
+**Root cause of the overflow:** The trace is a 21-iteration agent loop where each `Prompt` span contains the full accumulated conversation history. By iteration 21, one span holds 265 KB. This is not pathological — it is the standard behavior of any stateful LLM agent.
+
+**Failure mode of Tier 1 on large traces:**
+- Context overflow → Claude call fails or truncates silently
+- Even "lazy loading only flagged spans" fails: 30 flagged spans × 44 KB = 1.3 MB, still over limit
+
+---
+
+## Two-Tier Architecture
+
+**Tier 1 (small traces, <50 spans):** Current pipeline. Works correctly. Untouched.
+
+**Tier 2 (large traces, ≥50 spans):** New pipeline described below. Same AnalysisResult schema returned. Tiering is invisible to the user — same click, same UI.
+
+The threshold (50 spans) is a starting point. Will be tuned based on observed content sizes.
+
+---
+
+## Tier 1: Small Trace Pipeline (shipped)
+
+```
+Adapter → GraphBuilder → AnomalyDetector → AnalysisEngine (single Claude call) → Cache
+```
+
+1. Fetch all spans from Phoenix (metadata only)
+2. Build NetworkX directed graph (structural + causal edges)
+3. Rule-based anomaly detection: 6 rules, no LLM
+4. Load full content for flagged spans only (lazy)
+5. Single Claude call: graph + flagged content → AnalysisResult
+6. Cache in SQLite
+
+Works for traces where total content of flagged spans fits comfortably in Claude's context window.
+
+---
+
+## Tier 2: Large Trace Pipeline (in development)
+
+### Key Constraint: No Lossy Compression
+
+RAPTOR-style LLM summarization was considered and rejected. For narrative text, paraphrasing is acceptable. For trace analysis, exact values matter:
+- The precise error message in a span
+- The exact selector that failed: `querySelector('.faculty-name')` returning `null`
+- The specific iteration where token count spiked from 52K to 265K
+- Exact tool call parameters
+
+Summarizing any of this destroys the root cause. All compression must be **structural and lossless**.
+
+---
+
+### Stage 1: Trace Classification (free, <1ms)
+
+`TraceClassifier` decides tier based on span count. If large, continues to Stage 2.
+
+---
+
+### Stage 2: Leiden Community Detection (no LLM, <50ms)
+
+Run the Leiden algorithm on the span DAG. Leiden is the same algorithm used by Microsoft GraphRAG — proven at billion-edge scale, 403M edges/second.
+
+For the faculty scraper trace, Leiden naturally identifies:
+- `AgentLoop` — 21 iterations of [agent → should_continue → call_model → Prompt → ChatAnthropic]
+- `ToolUse` — 20 tool spans + 11 browser_run_code_unsafe spans
+- `OutputGeneration` — 2 generate_structured_response spans
+- `Root` — FacultyScraper root span
+
+No LLM involved. Pure graph partitioning on the parent-child edge structure.
+
+**Why Leiden over simpler grouping:** Leiden correctly handles cases where the "natural" grouping is not just by span name — it finds structurally cohesive subgraphs even in traces with irregular patterns.
+
+---
+
+### Stage 3: Community Metadata Cards (lossless, computed not summarized)
+
+For each community, compute a metadata card from raw span data. No LLM. No paraphrasing.
+
+```json
+{
+  "community_id": "C1",
+  "label": "AgentLoop",
+  "span_count": 105,
+  "span_types": ["agent", "should_continue", "call_model", "Prompt", "ChatAnthropic"],
+  "iteration_count": 21,
+  "avg_latency_ms": 4800,
+  "total_latency_ms": 100800,
+  "error_count": 0,
+  "token_growth": {"first": 52000, "last": 265000, "delta": 213000},
+  "anomalies": ["token_spike_at_iteration_4", "latency_spike_at_iteration_18"],
+  "flagged_span_ids": ["s043", "s089"]
+}
+```
+
+Everything is a computed statistic. Nothing is summarized. Claude reads these cards as structured data, not prose.
+
+---
+
+### Stage 4: Loop Deduplication (lossless, structural)
+
+For the agent loop community, instead of 21 identical iterations:
+- Keep iteration 1 (baseline state)
+- Keep any iteration where something changed: anomaly detected, error, latency spike, output differed
+- Keep iteration N (final state)
+- Skip identical middle iterations
+
+The "diff" between iterations is expressed as structured deltas (token count delta, latency delta, output hash changed: true/false) — not prose summaries. Exact values are preserved for kept iterations.
+
+---
+
+### Stage 5: Agentic Analysis via Claude Tool Use
+
+Claude receives:
+- All community metadata cards (~2,000 tokens total — down from 1.94M)
+- The compressed loop structure (iteration 1 + anomalous iterations + iteration 21)
+- A structured RCA SOP (based on Flow-of-Action architecture, 64% RCA accuracy proven at WWW 2025)
+
+Claude has tools to retrieve exact data on demand:
+
+```python
+search_spans(query: str)           # semantic search over span metadata
+get_community(community_id: str)   # full member list + metadata
+drill_span(span_id: str)           # EXACT raw content of one span, no summarization
+trace_causal_path(span_id: str)    # walk parent edges to root, return exact path
+diff_iterations(community_id, i, j) # exact structural diff between two loop iterations
+get_flagged_spans(community_id)    # spans flagged by Anomaly Detector in this community
+```
+
+Claude navigates the trace by calling tools. It only loads exact content for the 2-3 spans it actually needs. Nothing is summarized before reaching Claude. Everything Claude reads is the original raw data.
+
+**RCA SOP (guides Claude's tool use sequence):**
+1. Check for error-flagged communities first
+2. In each flagged community: `get_flagged_spans` → `drill_span` on each
+3. Trace causal path upward from errors
+4. For loop communities with anomalies: `diff_iterations` on the anomalous iteration
+5. Check if anomalies in one community correlate with issues in adjacent communities
+6. Synthesize into AnalysisResult
+
+---
+
+### Stage 6: Same Output Schema
+
+Tier 2 returns the same `AnalysisResult` as Tier 1. No changes to the frontend, cache, or API.
+
+---
+
+### Tier 2 Data Flow for Faculty Scraper Trace
+
+```
+172 spans, 1.94M tokens
+        ↓
+Stage 1: TraceClassifier → "large" (172 > 50) [<1ms]
+        ↓
+Stage 2: Leiden → 4 communities [<50ms, no LLM]
+        ↓
+Stage 3: Community metadata cards [<10ms, computed stats]
+         Total: ~2,000 tokens
+        ↓
+Stage 4: Loop deduplication: 21 iterations → 3 kept [<5ms]
+        ↓
+Stage 5: Claude sees 2,000 tokens + calls tools
+         Typical: 6-8 tool calls, each returning <10KB of exact raw data
+         Total tokens sent to Claude: ~10,000 (vs. 1.94M → impossible)
+        ↓
+Stage 6: AnalysisResult (same schema)
+Total latency: ~8-12s | Total cost: ~$0.05
+```
 
 ---
 
@@ -25,171 +197,73 @@ LLM systems (agents, RAG pipelines) fail silently. Existing trace stores (Langfu
 
 | Tool | Closest feature | Gap |
 |---|---|---|
-| LangSmith "Polly" | AI trace Q&A | LangChain-only, proprietary |
+| LangSmith "Polly" | AI trace Q&A | LangChain-only, proprietary, no large-trace handling |
 | Galileo Signals | Automated failure detection | Enterprise paid, black box |
 | Langfuse | Great trace store | No AI analysis layer |
 | Arize Phoenix | OTel-based tracing | Evaluation-focused, not conversational |
 
-**TraceIQ's position:** Open-source, framework-agnostic, Claude-powered analysis. Plug into any trace store.
+**TraceIQ's position:** Open-source, framework-agnostic, handles both small and large traces correctly.
 
 ---
 
-## Architecture
+## Feasibility Basis
 
-### The Two Problems
-1. **Per-trace:** Debug a specific bad run — why did this fail?
-2. **Cross-trace:** Spot patterns across thousands of runs — what keeps failing?
-
-Phase 2 solves #1. Phase 3 adds #2.
-
-### Layers
-
-```
-Dashboard (React + FastAPI)
-        ↓ REST API
-┌─────────────────────────────────┐
-│  Trace Adapter                  │  Fetches + normalizes spans
-│  Graph Builder                  │  In-memory directed graph (metadata only)
-│  Anomaly Detector               │  Rule-based flagging (no LLM)
-│  Analysis Engine (Claude)       │  Graph + flagged content → issue list
-│  Cache (SQLite)                 │  Stores results + chat history
-└─────────────────────────────────┘
-        ↓
-  Arize Phoenix (Phase 2 adapter)
-  + LangSmith, Langfuse, Weave (Phase 3 adapters)
-```
-
-### Layer 1 — Trace Adapter
-Abstract base class: `list_traces(limit, filters)`, `get_trace(id)`, `get_spans(trace_id)`.
-First implementation: Arize Phoenix REST API.
-Normalizes all span data into internal `Span` dataclass — nothing above this layer touches Phoenix types.
-
-### Layer 2 — Graph Builder
-Builds a directed interaction graph in memory from normalized spans.
-
-**Nodes:** One per span. Carries metadata only (name, type, latency, token counts, status, error message). Full input/output text is NOT loaded here.
-
-**Edge types:**
-- `structural`: parent → child (from `parent_id`)
-- `data-flow`: span A's output hash matches span B's input hash (retriever → LLM)
-- `causal`: span A errored and span B failed within 100ms (derived relationship)
-
-Build time: O(n) over spans. No LLM. For 18-span trace: <5ms.
-
-### Layer 3 — Anomaly Detector
-Pure rule-based graph walk. Flags suspicious node IDs without any LLM call.
-
-Rules:
-- `error_status`: span status = ERROR → severity ERROR
-- `latency_spike`: span latency > 2× median for that span type → severity WARNING
-- `loop_detected`: same span name appears 3+ times in sequence → severity ERROR
-- `token_spike`: LLM span tokens > 2× median for project → severity WARNING
-- `causal_chain`: parent errored AND child also failed → link them explicitly
-- `missing_output`: tool span has null output → severity WARNING
-
-Output: list of `(span_id, rule, severity)` tuples. Typically 2-5 flags per trace.
-
-### Layer 4 — Analysis Engine
-Single Claude call per trace. Input:
-
-1. Full graph structure (all nodes + edges with metadata) — always small
-2. Full `input` + `output` content ONLY for flagged spans — controlled size
-3. Structured prompt: reason step-by-step through the graph, identify root causes, return JSON
-
-**Output schema:**
-```json
-{
-  "issues": [
-    {
-      "id": "issue-1",
-      "category": "failure | latency | quality | logic",
-      "severity": "error | warning | info",
-      "span_id": "abc123",
-      "span_name": "web-search-attempt-1",
-      "explanation": "Rate limit error on web search caused the agent to retry 3 times, adding 2.1s of latency before succeeding.",
-      "suggestion": "Add exponential backoff or switch to a secondary search provider on rate limit."
-    }
-  ],
-  "root_cause": "Rate limiting on web-search tool triggered a 3-iteration retry loop.",
-  "summary": "Agent completed successfully but with unnecessary latency due to unhandled rate limits."
-}
-```
-
-Model: `claude-sonnet-4-6`. Prompt caching enabled for the system prompt.
-
-### Layer 5 — Cache
-SQLite. Three tables:
-- `traces`: snapshot of span metadata at analysis time
-- `analyses`: Claude's output per trace, keyed by trace_id
-- `chat_messages`: conversation history per trace
-
-Cache invalidation: manual only (user clicks "Re-analyze").
-
-Phase 3: swap SQLite → PostgreSQL. No other changes.
-
-### Layer 6 — Dashboard
-**Backend:** FastAPI. Endpoints:
-- `GET /api/traces` — list traces with issue counts
-- `GET /api/traces/{id}/analysis` — get or trigger analysis
-- `POST /api/traces/{id}/chat` — send message, stream Claude response
-
-**Frontend:** React. Two-panel layout:
-- Left: trace list, sortable by severity/latency/time, filterable by status
-- Right: trace tree with issues annotated inline per span + issue summary panel + chat
-
-Single entrypoint: `uv run traceiq` starts FastAPI + serves React build.
-
----
-
-## Data Flow (Per-Trace Analysis)
-
-```
-1. User clicks trace in list
-2. GET /api/traces/{id}/analysis
-3. Backend checks SQLite cache → hit: return instantly
-4. Cache miss:
-   a. Adapter fetches all spans from Phoenix
-   b. Graph Builder constructs in-memory graph (metadata only)
-   c. Anomaly Detector flags 2-5 suspicious spans
-   d. Fetch full input/output content for flagged spans only
-   e. Claude call: graph + flagged content → issue list JSON
-   f. Save to SQLite cache
-5. Return issue list to frontend
-6. Frontend annotates each span in the trace tree with its issues
-```
-
----
-
-## Phase 3 Additions (not in scope now)
-
-- **Persistent KG:** merge each trace graph into a global graph DB (Neo4j or SQLite with adjacency tables). Enables cross-trace queries: "all traces where reranker latency > 400ms."
-- **Span embeddings:** embed each span for semantic search across trace corpus.
-- **Continuous polling:** background worker pulls new traces from Phoenix every N minutes.
-- **Alerting:** Slack/email digest of critical issues.
-- **Multi-adapter:** LangSmith, Langfuse, Weave adapters.
-- **PostgreSQL:** replace SQLite for multi-user scale.
+| Source | Finding | Application |
+|---|---|---|
+| LLMRCA (ACM 2025) | Causal graph from traces → 92.86% top-1 RCA accuracy | Tier 1 graph approach |
+| SentinelAgent (arXiv 2026) | Directed interaction graph for multi-agent anomaly detection | Tier 1 graph structure |
+| Flow-of-Action (WWW 2025) | SOP-guided multi-agent RCA → 64% accuracy vs 35% for naive ReAct | Tier 2 RCA SOP |
+| GraphRAG / Leiden (Microsoft) | Leiden community detection proven at billion-edge scale | Tier 2 community detection |
+| LazyGraphRAG (Microsoft 2025) | On-demand graph extraction → 700× cheaper than full GraphRAG | Tier 2 lazy tool retrieval |
+| HippoRAG (NeurIPS 2024) | Personalized PageRank for multi-hop traversal → 10-20× cheaper than iterative | Tier 2 causal path traversal |
+| OpenRCA (ICLR 2025) | RCA agent on 68GB telemetry via Python tool use | Tier 2 agentic architecture |
+| Empirical (production trace) | 172-span trace = 9.8MB, 1.94M tokens = 9.7× Claude context limit | Confirms Tier 2 necessity |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Runtime | Python 3.12, uv |
-| Backend | FastAPI |
-| Frontend | React |
-| LLM | Claude API (`claude-sonnet-4-6`), prompt caching |
-| Trace source (Phase 2) | Arize Phoenix |
-| Storage | SQLite |
-| Graph (in-memory) | Python dicts + networkx |
+| Layer | Technology | Notes |
+|---|---|---|
+| Runtime | Python 3.12, uv | |
+| Backend | FastAPI | |
+| Frontend | React + Vite + TypeScript | |
+| LLM | Claude claude-sonnet-4-6 | Prompt caching enabled |
+| Trace source | Arize Phoenix | Adapter pattern, easily swappable |
+| Storage | SQLite | Analyses, chat history, settings |
+| Graph (Tier 1) | networkx | In-memory, already installed |
+| Community detection (Tier 2) | leidenalg | New dependency |
+| Tool use (Tier 2) | Claude native tool use | No LangChain |
 
 ---
 
 ## Key Design Decisions
 
-1. **Adapter pattern from day 1.** All trace sources implement the same abstract interface. Business logic never touches Phoenix types.
-2. **Metadata-first graph.** Build the graph with metadata only. Pull content lazily for flagged spans only. Keeps context window manageable even for large traces.
-3. **Rule-based pre-filter before LLM.** Anomaly Detector runs without any LLM call. Claude only sees what the rules have already flagged as suspicious.
-4. **Prompt caching.** System prompt + graph structure cached across chat messages on the same trace. Reduces cost significantly for multi-turn conversations.
-5. **SQLite first.** No infra to set up. Explicit migration path to PostgreSQL for Phase 3.
-6. **Shape the problem as we build.** Architecture intentionally kept lean for Phase 2. Cross-trace KG deferred to Phase 3 once we understand real-world trace patterns better.
+1. **Adapter pattern.** All trace sources implement the same abstract interface. Nothing above the adapter touches Phoenix types.
+
+2. **Metadata-first graph.** Nodes carry metadata only. Content loaded lazily for flagged spans only.
+
+3. **Rule-based pre-filter.** AnomalyDetector runs without LLM. Claude only sees pre-flagged spans.
+
+4. **Prompt caching.** System prompt cached across chat turns on the same trace.
+
+5. **No lossy compression.** RAPTOR-style LLM summarization explicitly rejected for trace content. Root causes live in exact values (error messages, parameters, token counts). All Tier 2 compression is structural (community grouping, loop deduplication) and fully lossless.
+
+6. **Lossless loop deduplication.** For agent loops: keep first + changed + last iterations. Express changes as structured deltas, not prose. Exact content preserved for kept iterations.
+
+7. **Agentic retrieval over bulk loading.** Tier 2 never pre-loads all span content. Claude requests exact spans on demand via tools. Nothing is summarized before Claude sees it.
+
+8. **Same output schema across tiers.** Tier 2 returns identical AnalysisResult. Frontend, cache, and API unchanged.
+
+9. **SQLite first.** No external infra. PostgreSQL migration path deferred to Phase 3.
+
+---
+
+## Phase 3 (Future)
+
+- Cross-trace pattern detection (span embeddings + vector search across stored analyses)
+- Continuous polling: background worker pulls new traces on interval
+- Multi-adapter: LangSmith, Langfuse, Weave
+- Alerting: Slack/email on critical issues
+- PostgreSQL for multi-user scale
+- Neo4j for cross-trace graph queries at scale
