@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { Send } from 'lucide-react'
 import { api } from '../api/client'
+import { cn } from '../lib/utils'
 
 export function Chat({ traceId }: { traceId: string }) {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [input, setInput]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const bottomRef               = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const send = async () => {
     if (!input.trim() || loading) return
@@ -28,48 +35,47 @@ export function Chat({ traceId }: { traceId: string }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ fontSize: 12, color: '#94a3b8', padding: '8px 16px', borderBottom: '1px solid #1e293b' }}>
-        Chat with Claude about this trace
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="flex flex-col h-full">
+      {/* Message list */}
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
         {messages.length === 0 && (
-          <div style={{ color: '#475569', fontSize: 13 }}>
+          <div className="text-[#475569] text-[13px] mt-4">
             Ask anything about this trace. E.g. "Why did the agent loop?" or "How can I fix the latency?"
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} style={{
-            alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-            background: m.role === 'user' ? '#1e40af' : '#1e293b',
-            color: '#f1f5f9', borderRadius: 8, padding: '8px 12px',
-            maxWidth: '85%', fontSize: 13, lineHeight: 1.5,
-            whiteSpace: 'pre-wrap',
-          }}>
-            {m.content || (loading && m.role === 'assistant' ? '▋' : '')}
+          <div
+            key={i}
+            className={cn(
+              'max-w-[85%] text-[13px] leading-relaxed rounded-xl px-4 py-2.5 whitespace-pre-wrap text-[#f1f5f9]',
+              m.role === 'user'
+                ? 'self-end bg-[#1e40af]'
+                : 'self-start bg-[#1e293b]'
+            )}
+          >
+            {m.content || (loading && m.role === 'assistant' ? (
+              <span className="animate-pulse">▋</span>
+            ) : '')}
           </div>
         ))}
+        <div ref={bottomRef} />
       </div>
-      <div style={{ padding: 12, borderTop: '1px solid #1e293b', display: 'flex', gap: 8 }}>
+
+      {/* Input bar */}
+      <div className="px-5 py-4 border-t border-[#1e293b] flex gap-2.5 flex-shrink-0">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
-          placeholder="Ask about this trace..."
-          style={{
-            flex: 1, background: '#0f172a', border: '1px solid #334155',
-            color: '#f1f5f9', borderRadius: 6, padding: '8px 12px', fontSize: 13,
-          }}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
+          placeholder="Ask about this trace…"
+          className="flex-1 bg-[#0f172a] border border-[#334155] text-[#f1f5f9] rounded-lg px-3.5 py-2 text-[13px] placeholder-[#475569] outline-none focus:border-[#3b82f6] transition-colors"
         />
         <button
           onClick={send}
-          disabled={loading}
-          style={{
-            background: '#3b82f6', color: 'white', border: 'none',
-            borderRadius: 6, padding: '8px 16px', cursor: loading ? 'not-allowed' : 'pointer',
-          }}
+          disabled={loading || !input.trim()}
+          className="flex items-center justify-center w-9 h-9 bg-[#3b82f6] text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#2563eb] transition-colors flex-shrink-0"
         >
-          {loading ? '...' : 'Send'}
+          <Send size={14} />
         </button>
       </div>
     </div>
