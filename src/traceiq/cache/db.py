@@ -27,6 +27,9 @@ class SQLiteCache:
                     created  TEXT DEFAULT (datetime('now'))
                 )
             """)
+            await db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chat_trace_id ON chat_messages (trace_id)"
+            )
             await db.commit()
 
     async def save_analysis(self, result: AnalysisResult) -> None:
@@ -66,6 +69,7 @@ class SQLiteCache:
     async def delete_analysis(self, trace_id: str) -> None:
         async with aiosqlite.connect(self._path) as db:
             await db.execute("DELETE FROM analyses WHERE trace_id = ?", (trace_id,))
+            await db.execute("DELETE FROM chat_messages WHERE trace_id = ?", (trace_id,))
             await db.commit()
 
     async def save_chat_message(self, trace_id: str, role: str, content: str) -> None:
