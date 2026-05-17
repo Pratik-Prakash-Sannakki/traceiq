@@ -8,10 +8,12 @@ def reset_pipeline_singletons():
     pipeline_module._adapter = None
     pipeline_module._cache = None
     pipeline_module._engine = None
+    pipeline_module._agent = None
     yield
     pipeline_module._adapter = None
     pipeline_module._cache = None
     pipeline_module._engine = None
+    pipeline_module._agent = None
 
 def make_span(
     span_id: str = "s1",

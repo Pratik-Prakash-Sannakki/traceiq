@@ -54,3 +54,14 @@ async def test_get_analysis_triggers_pipeline_on_cache_miss(client):
         resp = await client.get("/api/traces/t1/analysis")
     assert resp.status_code == 200
     mock_pipeline.assert_called_once_with("t1")
+
+@pytest.mark.asyncio
+async def test_large_trace_routes_through_run_analysis(client):
+    """run_analysis is always called regardless of trace size — routing happens inside it."""
+    with patch("traceiq.api.routes.get_cache") as mock_cache, \
+         patch("traceiq.api.routes.run_analysis", new_callable=AsyncMock) as mock_pipeline:
+        mock_cache.return_value.get_analysis = AsyncMock(return_value=None)
+        mock_pipeline.return_value = MOCK_ANALYSIS
+        resp = await client.get("/api/traces/large-trace-id/analysis")
+    assert resp.status_code == 200
+    mock_pipeline.assert_called_once_with("large-trace-id")
