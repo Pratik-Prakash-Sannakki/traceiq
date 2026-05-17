@@ -26,16 +26,17 @@ def test_returns_community_objects():
 
 
 def test_label_uses_dominant_span_name():
+    # All 3 spans have name "test-span" (>40% threshold) — label should be "test-span"
     spans = [
-        make_span("a1", span_kind="TOOL"),
-        make_span("a2", span_kind="TOOL", parent_id="a1"),
-        make_span("a3", span_kind="TOOL", parent_id="a2"),
+        make_span("a1", name="test-span", span_kind="TOOL"),
+        make_span("a2", name="test-span", span_kind="TOOL", parent_id="a1"),
+        make_span("a3", name="test-span", span_kind="TOOL", parent_id="a2"),
     ]
     graph = _build_graph(spans)
     communities = CommunityDetector().detect(spans, graph)
-    # All TOOL spans — should have a label reflecting that
-    labels = [c.label for c in communities]
-    assert any(label for label in labels)  # labels are non-empty
+    # All spans connected in a chain — one community; dominant name = "test-span"
+    assert len(communities) == 1
+    assert communities[0].label == "test-span"
 
 
 def test_isolated_nodes_still_assigned():
