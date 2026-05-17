@@ -1,5 +1,11 @@
+import math
 import networkx as nx
 from traceiq.models import Span
+
+def _safe(v):
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
 
 class GraphBuilder:
 
@@ -35,7 +41,7 @@ class GraphBuilder:
     def serialize(self, G: nx.DiGraph) -> dict:
         return {
             "nodes": [
-                {k: v for k, v in data.items()}
+                {k: _safe(v) for k, v in data.items()}
                 for _, data in G.nodes(data=True)
             ],
             "edges": [

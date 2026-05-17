@@ -52,3 +52,19 @@ def test_does_not_flag_missing_output_on_error_span():
     g, spans = _build(spans)
     flags = AnomalyDetector().detect(spans, g)
     assert not any(f.rule == "missing_output" for f in flags)
+
+def test_flags_token_spike():
+    spans = [
+        make_span("s1", span_kind="LLM", token_count_prompt=100, token_count_completion=50),   # 150 tokens
+        make_span("s2", span_kind="LLM", token_count_prompt=100, token_count_completion=50),   # 150 tokens (median=150)
+        make_span("s3", span_kind="LLM", token_count_prompt=500, token_count_completion=200),  # 700 tokens (4.6x median)
+    ]
+    g, spans = _build(spans)
+    flags = AnomalyDetector().detect(spans, g)
+    assert any(f.span_id == "s3" and f.rule == "token_spike" for f in flags)
+
+def test_does_not_flag_token_spike_with_single_llm_span():
+    spans = [make_span("s1", span_kind="LLM", token_count_prompt=9999, token_count_completion=9999)]
+    g, spans = _build(spans)
+    flags = AnomalyDetector().detect(spans, g)
+    assert not any(f.rule == "token_spike" for f in flags)
