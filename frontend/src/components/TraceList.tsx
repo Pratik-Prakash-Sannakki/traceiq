@@ -123,7 +123,7 @@ export function TraceList({
                     {t.span_count} spans
                   </span>
                   <span className={cn('flex items-center gap-1 text-[11px] font-semibold', tokHigh ? 'text-[#f87171]' : 'text-[#818cf8]')}>
-                    <Zap size={10} className="opacity-80" style={{ stroke: tokHigh ? '#f87171' : '#818cf8' }} />
+                    <Zap size={10} className="opacity-80" />
                     {formatTokens(t.token_count_total)}
                   </span>
                 </div>

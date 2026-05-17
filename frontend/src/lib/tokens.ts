@@ -41,7 +41,7 @@ export function formatTokens(n: number): string {
   return `${n} tok`
 }
 
-export const CATEGORY_PILL: Record<string, string> = {
+export const CATEGORY_PILL: Record<'failure' | 'latency' | 'quality' | 'logic', string> = {
   failure: 'bg-red-500/12 text-[#f87171] border border-red-500/35',
   latency: 'bg-amber-500/10 text-[#fbbf24] border border-amber-500/35',
   quality: 'bg-violet-500/10 text-[#a78bfa] border border-violet-500/35',

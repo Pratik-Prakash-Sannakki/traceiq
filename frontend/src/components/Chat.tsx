@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '../api/client'
 import { cn } from '../lib/utils'
 
@@ -23,15 +24,21 @@ export function Chat({ traceId }: { traceId: string }) {
     let reply = ''
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
 
-    await api.chat(traceId, msg, chunk => {
-      reply += chunk
-      setMessages(prev => {
-        const updated = [...prev]
-        updated[updated.length - 1] = { role: 'assistant', content: reply }
-        return updated
+    try {
+      await api.chat(traceId, msg, chunk => {
+        reply += chunk
+        setMessages(prev => {
+          const updated = [...prev]
+          updated[updated.length - 1] = { role: 'assistant', content: reply }
+          return updated
+        })
       })
-    })
-    setLoading(false)
+    } catch {
+      toast.error('Chat failed')
+      setMessages(prev => prev.slice(0, -1))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
