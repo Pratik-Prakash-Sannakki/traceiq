@@ -20,8 +20,8 @@ class LoopDeduplicator:
         name_counts = Counter(s.name for s in members)
         dominant_name, dominant_count = name_counts.most_common(1)[0]
 
-        # Not a loop if dominant name appears 3 or fewer times
-        if dominant_count <= 3:
+        # Not a loop if dominant name appears fewer than 3 times
+        if dominant_count < 3:
             delta = self._make_delta(members[0], 0, "baseline")
             return CompressedLoop(community_id=community.community_id,
                                   total_iterations=1, kept_iterations=[delta], skipped_count=0)

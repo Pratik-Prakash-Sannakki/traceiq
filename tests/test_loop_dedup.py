@@ -8,7 +8,7 @@ def _community(span_ids, label="AgentLoop"):
 
 
 def test_non_loop_community_returns_one_iteration():
-    spans = [make_span("s1"), make_span("s2"), make_span("s3")]
+    spans = [make_span("s1", name="fetch"), make_span("s2", name="parse"), make_span("s3", name="store")]
     community = _community(["s1", "s2", "s3"])
     result = LoopDeduplicator().compress(community, spans)
     assert isinstance(result, CompressedLoop)
@@ -75,3 +75,14 @@ def test_empty_community_returns_empty_loop():
     assert result.total_iterations == 0
     assert result.kept_iterations == []
     assert result.skipped_count == 0
+
+
+def test_exactly_3_repetitions_is_a_loop():
+    # 3 spans all named "agent" — boundary case: spec says 3+ = loop
+    spans = [make_span(f"a{i}", name="agent") for i in range(3)]
+    community = _community([s.span_id for s in spans])
+    result = LoopDeduplicator().compress(community, spans)
+    assert result.total_iterations == 3
+    reasons = [d.reason for d in result.kept_iterations]
+    assert "baseline" in reasons
+    assert "final" in reasons
