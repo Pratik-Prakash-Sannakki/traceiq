@@ -3,12 +3,6 @@ import type { Issue } from '../api/client'
 import { cn } from '../lib/utils'
 import { CATEGORY_PILL } from '../lib/tokens'
 
-const CATEGORY_BORDER: Record<'failure' | 'latency' | 'quality' | 'logic', string> = {
-  failure: 'border-l-red-500/60',
-  latency: 'border-l-amber-500/60',
-  quality: 'border-l-violet-500/60',
-  logic:   'border-l-blue-500/60',
-}
 
 function SevIcon({ severity }: { severity: Issue['severity'] }) {
   const base = 'w-9 h-9 rounded-lg flex-shrink-0 flex items-center justify-center'
@@ -44,10 +38,10 @@ export function IssuePanel({ issues, rootCause, summary }: {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-6 space-y-5 max-w-4xl">
 
       {/* Root cause card */}
-      <div className="bg-red-500/5 border border-red-500/20 border-l-[3px] border-l-red-500 rounded-lg p-4">
+      <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4" style={{ borderLeft: '3px solid #ef4444' }}>
         <div className="flex items-center gap-1.5 mb-2">
           <div className="w-[5px] h-[5px] rounded-full bg-[#ef4444] flex-shrink-0" />
           <span className="text-[10px] font-bold uppercase tracking-widest text-[#f87171]">Root Cause Identified</span>
@@ -67,10 +61,12 @@ export function IssuePanel({ issues, rootCause, summary }: {
           {issues.map(issue => (
             <div
               key={issue.id}
-              className={cn(
-                'bg-[#0c1220] border border-[#1e293b] border-l-[3px] rounded-lg overflow-hidden hover:bg-[#0f1828] transition-colors',
-                CATEGORY_BORDER[issue.category]
-              )}
+              className="bg-[#0c1220] border border-[#1e293b] rounded-lg overflow-hidden hover:bg-[#0f1828] transition-colors"
+              style={{ borderLeft: `3px solid ${
+                issue.category === 'failure' ? '#ef4444' :
+                issue.category === 'latency' ? '#f59e0b' :
+                issue.category === 'quality' ? '#8b5cf6' : '#3b82f6'
+              }` }}
             >
               {/* Card header */}
               <div className="flex items-center gap-2.5 px-4 pt-4 pb-2.5">
