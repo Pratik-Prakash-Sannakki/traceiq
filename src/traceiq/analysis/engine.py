@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime, timezone
 import anthropic
 import networkx as nx
@@ -36,11 +37,21 @@ class AnalysisEngine:
         )
 
         raw = response.content[0].text
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        data = json.loads(raw.strip())
+        # Strip markdown code fences if present
+        fence_match = re.search(r'```(?:json)?\s*(.*?)```', raw, re.DOTALL)
+        if fence_match:
+            raw = fence_match.group(1)
+        try:
+            data = json.loads(raw.strip())
+        except (json.JSONDecodeError, ValueError):
+            return AnalysisResult(
+                trace_id=trace_id,
+                issues=[],
+                root_cause="Analysis failed: Claude returned unparseable response.",
+                summary="Could not parse Claude's response. Please try re-analyzing this trace.",
+                analyzed_at=datetime.now(timezone.utc).isoformat(),
+                flags=flags,
+            )
 
         issues = [
             Issue(
