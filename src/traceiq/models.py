@@ -90,7 +90,7 @@ class CommunityCard:
     total_latency_ms: float
     error_count: int
     flagged_span_ids: list[str] # span_ids flagged by AnomalyDetector in this community
-    token_growth: dict          # {"first": int, "last": int} — empty dict if no LLM spans
+    token_growth: dict[str, int]  # {"first": int, "last": int} — empty dict if no LLM spans
     anomalies: list[str]        # descriptive labels e.g. "token_spike_at_iteration_4"
 
 
@@ -98,11 +98,11 @@ class CommunityCard:
 class IterationDelta:
     iteration_index: int
     span_id: str
-    reason: str         # "baseline" | "final" | "anomaly:<rule>" | "error"
+    reason: str         # "baseline" | "final" | "anomaly:<rule>"
     latency_ms: float
     token_count: int
     has_error: bool
-    error_message: str | None
+    error_message: Optional[str]
 
 
 @dataclass
