@@ -113,16 +113,16 @@ export function TraceList({
                 <div className="text-[12px] font-semibold text-[#e2e8f0] truncate mb-1.5">
                   {t.name || t.trace_id.slice(0, 12)}
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="flex items-center gap-1 text-[11px] text-[#64748b]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1 text-[11px] text-[#64748b] whitespace-nowrap">
                     <Clock size={10} className="opacity-70" />
                     {(t.total_latency_ms / 1000).toFixed(1)}s
                   </span>
-                  <span className="flex items-center gap-1 text-[11px] text-[#64748b]">
+                  <span className="flex items-center gap-1 text-[11px] text-[#64748b] whitespace-nowrap">
                     <Layers size={10} className="opacity-70" />
                     {t.span_count} spans
                   </span>
-                  <span className={cn('flex items-center gap-1 text-[11px] font-semibold', tokHigh ? 'text-[#f87171]' : 'text-[#818cf8]')}>
+                  <span className={cn('flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap', tokHigh ? 'text-[#f87171]' : 'text-[#818cf8]')}>
                     <Zap size={10} className="opacity-80" />
                     {formatTokens(t.token_count_total)}
                   </span>

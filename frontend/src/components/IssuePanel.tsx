@@ -61,14 +61,16 @@ export function IssuePanel({ issues, rootCause, summary }: {
             <div key={issue.id} className="bg-[#0c1220] border border-[#1e293b] rounded-[11px] p-[18px] flex gap-4 items-start hover:border-[#334155] transition-colors">
               <SevIcon severity={issue.severity} />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-2">
-                  <span className={cn('text-[11px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0', CATEGORY_PILL[issue.category])}>
-                    {issue.category.charAt(0).toUpperCase() + issue.category.slice(1)}
-                  </span>
-                  <span className="text-[14px] font-semibold text-[#f1f5f9]">{issue.explanation.split('.')[0]}</span>
-                  <span className="text-[11px] text-[#475569] font-mono bg-[#0f172a] border border-[#1e293b] rounded px-2 py-0.5 whitespace-nowrap">
-                    {issue.span_name}
-                  </span>
+                <div className="mb-2">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className={cn('text-[11px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0', CATEGORY_PILL[issue.category])}>
+                      {issue.category.charAt(0).toUpperCase() + issue.category.slice(1)}
+                    </span>
+                    <span className="text-[11px] text-[#475569] font-mono bg-[#0f172a] border border-[#1e293b] rounded px-2 py-0.5 whitespace-nowrap">
+                      {issue.span_name}
+                    </span>
+                  </div>
+                  <div className="text-[14px] font-semibold text-[#f1f5f9] leading-snug">{issue.explanation.split('.')[0]}</div>
                 </div>
                 <div className="text-[13px] text-[#64748b] leading-[1.65]">{issue.explanation}</div>
                 {issue.suggestion && (
