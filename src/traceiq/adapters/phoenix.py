@@ -18,8 +18,16 @@ class PhoenixAdapter(TraceAdapter):
         except (ValueError, TypeError):
             return 0.0
 
+    async def _get(self, path: str, **kwargs):
+        """Make a GET request, recreating the client if the connection is stale."""
+        try:
+            return await self._client.get(path, **kwargs)
+        except Exception:
+            self._client = httpx.AsyncClient(base_url=self._base, timeout=30.0)
+            return await self._client.get(path, **kwargs)
+
     async def list_traces(self, limit: int = 50) -> list[TraceInfo]:
-        resp = await self._client.get(f"/v1/projects/{self._project}/traces", params={"limit": limit})
+        resp = await self._get(f"/v1/projects/{self._project}/traces", params={"limit": limit})
         resp.raise_for_status()
         data = resp.json().get("data", [])
         result = []
@@ -40,14 +48,12 @@ class PhoenixAdapter(TraceAdapter):
         return result
 
     async def get_spans(self, trace_id: str) -> list[Span]:
-        resp = await self._client.get(
+        resp = await self._get(
             f"/v1/projects/{self._project}/spans",
             params={"limit": 500, "filter": f'trace_id = "{trace_id}"'},
         )
         resp.raise_for_status()
         data = resp.json().get("data", [])
-
-        # Fallback: filter client-side if server filter not supported
         data = [s for s in data if s.get("context", {}).get("trace_id") == trace_id]
 
         spans = []
@@ -69,15 +75,15 @@ class PhoenixAdapter(TraceAdapter):
                 latency_ms=latency,
                 status=status,
                 error_message=attrs.get("exception.message") or attrs.get("error.message"),
-                input_value=None,   # not loaded yet
-                output_value=None,  # not loaded yet
+                input_value=None,
+                output_value=None,
                 token_count_prompt=int(attrs.get("llm.token_count.prompt", 0) or 0),
                 token_count_completion=int(attrs.get("llm.token_count.completion", 0) or 0),
             ))
         return spans
 
     async def get_span_content(self, span: Span) -> SpanContent:
-        resp = await self._client.get(
+        resp = await self._get(
             f"/v1/projects/{self._project}/spans",
             params={"limit": 500, "filter": f'trace_id = "{span.trace_id}"'},
         )
