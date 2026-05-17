@@ -4,6 +4,7 @@ import type { TraceInfo, Analysis } from './api/client'
 import { TraceList } from './components/TraceList'
 import { IssuePanel } from './components/IssuePanel'
 import { Chat } from './components/Chat'
+import { Settings } from './components/Settings'
 
 export default function App() {
   const [traces, setTraces] = useState<TraceInfo[]>([])
@@ -11,6 +12,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [activeTab, setActiveTab] = useState<'issues' | 'chat'>('issues')
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     api.listTraces().then(setTraces).catch(console.error)
@@ -47,7 +49,13 @@ export default function App() {
       display: 'flex', height: '100vh', background: '#0a0f1e',
       color: '#f1f5f9', fontFamily: 'system-ui, sans-serif',
     }}>
-      <TraceList traces={traces} selectedId={selectedId} onSelect={selectTrace} />
+      <TraceList traces={traces} selectedId={selectedId} onSelect={selectTrace} onSettings={() => setShowSettings(true)} />
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          onSaved={() => api.listTraces().then(setTraces).catch(console.error)}
+        />
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!selectedId ? (

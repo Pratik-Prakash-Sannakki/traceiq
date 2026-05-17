@@ -16,15 +16,21 @@ export function TraceList({
   traces,
   selectedId,
   onSelect,
+  onSettings,
 }: {
   traces: TraceInfo[]
   selectedId: string | null
   onSelect: (id: string) => void
+  onSettings: () => void
 }) {
   return (
     <div style={{ width: 320, borderRight: '1px solid #333', overflowY: 'auto', height: '100vh' }}>
-      <div style={{ padding: '16px', borderBottom: '1px solid #333', fontWeight: 600 }}>
-        Traces ({traces.length})
+      <div style={{ padding: '16px', borderBottom: '1px solid #333', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Traces ({traces.length})</span>
+        <button onClick={onSettings} title="Connection settings" style={{
+          background: 'transparent', border: 'none', color: '#475569',
+          cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1,
+        }}>⚙</button>
       </div>
       {traces.map(t => (
         <div

@@ -10,6 +10,11 @@ from traceiq.api.pipeline import get_cache
 async def lifespan(app: FastAPI):
     cache = get_cache()
     await cache.init()
+    # Load saved Phoenix settings into pipeline module-level vars
+    from traceiq.api.pipeline import set_phoenix_config
+    url = await cache.get_setting("phoenix_url", os.environ.get("PHOENIX_URL", "http://localhost:6006"))
+    project = await cache.get_setting("phoenix_project", os.environ.get("PHOENIX_PROJECT", "default"))
+    set_phoenix_config(url, project)
     yield
 
 def create_app() -> FastAPI:

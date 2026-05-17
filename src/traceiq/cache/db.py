@@ -30,6 +30,12 @@ class SQLiteCache:
             await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_chat_trace_id ON chat_messages (trace_id)"
             )
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
             await db.commit()
 
     async def save_analysis(self, result: AnalysisResult) -> None:
@@ -88,3 +94,28 @@ class SQLiteCache:
             ) as cur:
                 rows = await cur.fetchall()
         return [{"role": r[0], "content": r[1]} for r in rows]
+
+    async def save_setting(self, key: str, value: str) -> None:
+        async with aiosqlite.connect(self._path) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
+            await db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (key, value),
+            )
+            await db.commit()
+
+    async def get_setting(self, key: str, default: str = "") -> str:
+        async with aiosqlite.connect(self._path) as db:
+            try:
+                async with db.execute(
+                    "SELECT value FROM settings WHERE key = ?", (key,)
+                ) as cur:
+                    row = await cur.fetchone()
+                return row[0] if row else default
+            except Exception:
+                return default
