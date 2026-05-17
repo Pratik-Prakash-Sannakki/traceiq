@@ -62,3 +62,33 @@ def test_avg_latency_computed():
     card = _card(["s1", "s2"], spans)
     assert card.avg_latency_ms == 200.0
     assert card.total_latency_ms == 400.0
+
+def test_iteration_count_one_when_no_dominant_name():
+    # 3 different span names — no name appears 3+ times
+    spans = [
+        make_span("s1", name="retrieve"),
+        make_span("s2", name="generate"),
+        make_span("s3", name="validate"),
+    ]
+    card = _card(["s1", "s2", "s3"], spans)
+    assert card.iteration_count == 1
+
+def test_iteration_count_matches_dominant_repetitions():
+    # "agent" appears 4 times → loop of 4 iterations
+    spans = [make_span(f"a{i}", name="agent") for i in range(4)]
+    card = _card([s.span_id for s in spans], spans)
+    assert card.iteration_count == 4
+
+def test_anomalies_format():
+    spans = [make_span("s1"), make_span("s2")]
+    flags = [Flag("s1", "error_status", "error")]
+    card = _card(["s1", "s2"], spans, flags)
+    assert len(card.anomalies) == 1
+    assert card.anomalies[0] == f"error_status:{flags[0].span_id[:8]}"
+
+def test_anomalies_deduped_per_span():
+    # Same span flagged twice — only one anomaly entry
+    spans = [make_span("s1")]
+    flags = [Flag("s1", "error_status", "error"), Flag("s1", "latency_spike", "warning")]
+    card = _card(["s1"], spans, flags)
+    assert len(card.anomalies) == 1

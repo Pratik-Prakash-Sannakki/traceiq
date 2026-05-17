@@ -23,8 +23,11 @@ class CommunityCardBuilder:
         error_count = sum(1 for s in members if s.has_error)
         flagged_span_ids = [f.span_id for f in flags if f.span_id in member_ids]
 
-        # Token growth: first and last LLM spans in order they appear
-        llm_spans = [s for s in members if s.span_kind == "LLM"]
+        # Token growth: first and last LLM spans in chronological order
+        llm_spans = sorted(
+            [s for s in members if s.span_kind == "LLM"],
+            key=lambda s: s.start_time
+        )
         token_growth: dict[str, int] = {}
         if len(llm_spans) >= 2:
             token_growth = {"first": llm_spans[0].total_tokens, "last": llm_spans[-1].total_tokens}
