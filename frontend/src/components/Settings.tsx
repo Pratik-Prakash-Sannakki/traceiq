@@ -86,7 +86,7 @@ export function Settings({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <p style={labelStyle}>Data Source</p>
           <div style={{ display: 'flex', gap: 8 }}>
             {([
-              { id: 'phoenix',   label: '🔥 Phoenix'   },
+              { id: 'phoenix',   label: 'Arize Phoenix' },
               { id: 'langsmith', label: '🦜 LangSmith' },
             ] as { id: Provider; label: string }[]).map(p => (
               <button
