@@ -119,7 +119,7 @@ class LangSmithAdapter(TraceAdapter):
                 end_time=r.get("end_time") or "",
                 total_latency_ms=latency,
                 token_count_total=int(tokens or 0),
-                span_count=len(r.get("child_run_ids") or []),
+                span_count=len(r.get("child_run_ids") or []) + 1,
                 has_errors=bool(r.get("error")),
             ))
         return result

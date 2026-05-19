@@ -31,8 +31,9 @@ class PhoenixAdapter(TraceAdapter):
         resp.raise_for_status()
         data = resp.json().get("data", [])
 
-        # Fetch all spans and pick the earliest null-parent span per trace as the root name
+        # Fetch all spans to get root names and span counts per trace
         root_name: dict[str, str] = {}
+        span_counts: dict[str, int] = {}
         try:
             rs = await self._get(
                 f"/v1/projects/{self._project}/spans",
@@ -41,12 +42,15 @@ class PhoenixAdapter(TraceAdapter):
             if rs.status_code == 200:
                 earliest: dict[str, tuple[str, str]] = {}  # trace_id -> (start_time, name)
                 for s in rs.json().get("data", []):
+                    tid = (s.get("context") or {}).get("trace_id", "")
+                    if not tid:
+                        continue
+                    span_counts[tid] = span_counts.get(tid, 0) + 1
                     if s.get("parent_id") is not None:
                         continue
-                    tid   = (s.get("context") or {}).get("trace_id", "")
                     sname = s.get("name", "")
                     stime = s.get("start_time", "")
-                    if not tid or not sname:
+                    if not sname:
                         continue
                     if tid not in earliest or stime < earliest[tid][0]:
                         earliest[tid] = (stime, sname)
@@ -68,7 +72,7 @@ class PhoenixAdapter(TraceAdapter):
                 end_time=t.get("end_time", ""),
                 total_latency_ms=latency,
                 token_count_total=t.get("token_count_total", 0) or 0,
-                span_count=0,
+                span_count=span_counts.get(trace_id, 0),
                 has_errors=False,
             ))
         return result
