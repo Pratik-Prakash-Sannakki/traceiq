@@ -10,11 +10,17 @@ from traceiq.api.pipeline import get_cache
 async def lifespan(app: FastAPI):
     cache = get_cache()
     await cache.init()
-    # Load saved Phoenix settings into pipeline module-level vars
-    from traceiq.api.pipeline import set_phoenix_config
-    url = await cache.get_setting("phoenix_url", os.environ.get("PHOENIX_URL", "http://localhost:6006"))
-    project = await cache.get_setting("phoenix_project", os.environ.get("PHOENIX_PROJECT", "default"))
-    set_phoenix_config(url, project)
+    from traceiq.api.pipeline import set_phoenix_config, set_langsmith_config
+    provider = await cache.get_setting("provider", "phoenix")
+    if provider == "langsmith":
+        key     = await cache.get_setting("langsmith_api_key", os.environ.get("LANGCHAIN_API_KEY", ""))
+        project = await cache.get_setting("langsmith_project", os.environ.get("LANGCHAIN_PROJECT", "default"))
+        host    = await cache.get_setting("langsmith_host", os.environ.get("LANGSMITH_HOST", "https://api.smith.langchain.com"))
+        set_langsmith_config(key, project, host)
+    else:
+        url     = await cache.get_setting("phoenix_url", os.environ.get("PHOENIX_URL", "http://localhost:6006"))
+        project = await cache.get_setting("phoenix_project", os.environ.get("PHOENIX_PROJECT", "default"))
+        set_phoenix_config(url, project)
     yield
 
 def create_app() -> FastAPI:

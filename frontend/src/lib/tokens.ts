@@ -15,9 +15,9 @@ export const STATUS_LABEL: Record<TraceStatus, string> = {
 }
 
 export const STATUS_DOT: Record<TraceStatus, string> = {
-  failing:  'bg-[#ef4444] shadow-[0_0_6px_rgba(239,68,68,0.5)]',
-  degraded: 'bg-[#f59e0b] shadow-[0_0_6px_rgba(245,158,11,0.4)]',
-  healthy:  'bg-[#22c55e] shadow-[0_0_6px_rgba(34,197,94,0.3)]',
+  failing:  'bg-[#ef4444]',
+  degraded: 'bg-[#f59e0b]',
+  healthy:  'bg-[#22c55e]',
 }
 
 export const STATUS_PILL: Record<TraceStatus, string> = {

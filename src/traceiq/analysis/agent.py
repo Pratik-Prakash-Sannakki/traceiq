@@ -31,7 +31,9 @@ Use your tools to investigate and identify root causes of failures, latency issu
   "summary": "2-3 sentences"
 }
 
-Be specific. Exact values from spans matter. Do not paraphrase."""
+Be specific. Exact values from spans matter. Do not paraphrase.
+
+CRITICAL: You MUST call finish_analysis to submit your results. Never output JSON as plain text. Always use the finish_analysis tool."""
 
 TOOLS = [
     {
@@ -134,7 +136,20 @@ class AgentAnalyzer:
 
             if response.stop_reason == "end_turn":
                 text_blocks = [b.text for b in response.content if hasattr(b, "text")]
-                return self._parse_result(trace_id, " ".join(text_blocks), flags)
+                raw = " ".join(text_blocks).strip()
+                # Try to parse — if it looks like valid JSON, accept it
+                fence = re.search(r'```(?:json)?\s*(.*?)```', raw, re.DOTALL)
+                candidate = fence.group(1).strip() if fence else raw
+                try:
+                    json.loads(candidate)
+                    return self._parse_result(trace_id, candidate, flags)
+                except (json.JSONDecodeError, ValueError):
+                    # Agent wrote narrative text — nudge it to call finish_analysis
+                    messages.append({"role": "assistant", "content": response.content})
+                    messages.append({"role": "user", "content":
+                        "You must now call the finish_analysis tool with your findings in the required JSON format. "
+                        "Do not write text — call finish_analysis immediately."})
+                    continue
 
             if response.stop_reason == "tool_use":
                 tool_results = []

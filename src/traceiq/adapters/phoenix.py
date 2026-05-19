@@ -30,14 +30,40 @@ class PhoenixAdapter(TraceAdapter):
         resp = await self._get(f"/v1/projects/{self._project}/traces", params={"limit": limit})
         resp.raise_for_status()
         data = resp.json().get("data", [])
+
+        # Fetch all spans and pick the earliest null-parent span per trace as the root name
+        root_name: dict[str, str] = {}
+        try:
+            rs = await self._get(
+                f"/v1/projects/{self._project}/spans",
+                params={"limit": limit * 20},
+            )
+            if rs.status_code == 200:
+                earliest: dict[str, tuple[str, str]] = {}  # trace_id -> (start_time, name)
+                for s in rs.json().get("data", []):
+                    if s.get("parent_id") is not None:
+                        continue
+                    tid   = (s.get("context") or {}).get("trace_id", "")
+                    sname = s.get("name", "")
+                    stime = s.get("start_time", "")
+                    if not tid or not sname:
+                        continue
+                    if tid not in earliest or stime < earliest[tid][0]:
+                        earliest[tid] = (stime, sname)
+                root_name = {tid: v[1] for tid, v in earliest.items()}
+        except Exception:
+            pass
+
         result = []
         for t in data:
+            trace_id = t["trace_id"]
             latency = self._parse_latency(
                 t.get("start_time", ""), t.get("end_time", "")
             )
+            name = root_name.get(trace_id) or t.get("name") or trace_id[:12]
             result.append(TraceInfo(
-                trace_id=t["trace_id"],
-                name=t.get("name", t["trace_id"][:8]),
+                trace_id=trace_id,
+                name=name,
                 start_time=t.get("start_time", ""),
                 end_time=t.get("end_time", ""),
                 total_latency_ms=latency,

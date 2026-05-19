@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '../api/client'
-import { cn } from '../lib/utils'
 
 export function Chat({ traceId }: { traceId: string }) {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
@@ -20,17 +19,15 @@ export function Chat({ traceId }: { traceId: string }) {
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setLoading(true)
-
     let reply = ''
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-
     try {
       await api.chat(traceId, msg, chunk => {
         reply += chunk
         setMessages(prev => {
-          const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: reply }
-          return updated
+          const next = [...prev]
+          next[next.length - 1] = { role: 'assistant', content: reply }
+          return next
         })
       })
     } catch {
@@ -42,47 +39,86 @@ export function Chat({ traceId }: { traceId: string }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Message list */}
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && (
-          <div className="text-[#475569] text-[13px] mt-4">
-            Ask anything about this trace. E.g. "Why did the agent loop?" or "How can I fix the latency?"
+          <div style={{ margin: 'auto', textAlign: 'center', paddingBottom: 80 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--card)', border: '1px solid var(--line-hi)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--t3)' }}>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)', marginBottom: 6 }}>Ask about this trace</p>
+            <p style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.6 }}>
+              "Why did the agent loop?" · "How do I fix the latency?" · "What caused the token spike?"
+            </p>
           </div>
         )}
+
         {messages.map((m, i) => (
           <div
             key={i}
-            className={cn(
-              'max-w-[85%] text-[13px] leading-relaxed rounded-xl px-4 py-2.5 whitespace-pre-wrap text-[#f1f5f9]',
-              m.role === 'user'
-                ? 'self-end bg-[#1e40af]'
-                : 'self-start bg-[#1e293b]'
-            )}
+            style={{
+              maxWidth: '80%',
+              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+              background: m.role === 'user' ? '#1d4ed8' : 'var(--card)',
+              border: m.role === 'user' ? 'none' : '1px solid var(--line)',
+              borderRadius: m.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+              padding: '10px 16px',
+              fontSize: 13,
+              lineHeight: 1.7,
+              color: 'var(--t1)',
+              whiteSpace: 'pre-wrap',
+            }}
           >
-            {m.content || (loading && m.role === 'assistant' ? (
-              <span className="animate-pulse">▋</span>
-            ) : '')}
+            {m.content || (loading && m.role === 'assistant'
+              ? <span style={{ animation: 'pulse 1s infinite', opacity: 0.6 }}>▋</span>
+              : null
+            )}
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
 
       {/* Input bar */}
-      <div className="px-5 py-4 border-t border-[#1e293b] flex gap-2.5 flex-shrink-0">
+      <div style={{ padding: '16px 32px 20px', borderTop: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
           placeholder="Ask about this trace…"
-          className="flex-1 bg-[#0f172a] border border-[#334155] text-[#f1f5f9] rounded-lg px-3.5 py-2 text-[13px] placeholder-[#475569] outline-none focus:border-[#3b82f6] transition-colors"
+          style={{
+            flex: 1,
+            background: 'var(--card)',
+            border: '1px solid var(--line)',
+            borderRadius: 10,
+            padding: '11px 16px',
+            fontSize: 13,
+            color: 'var(--t1)',
+            outline: 'none',
+            fontFamily: 'var(--font)',
+          }}
+          onFocus={e => (e.target.style.borderColor = '#3b82f6')}
+          onBlur={e => (e.target.style.borderColor = 'var(--line)')}
         />
         <button
           onClick={send}
           disabled={loading || !input.trim()}
-          className="flex items-center justify-center w-9 h-9 bg-[#3b82f6] text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#2563eb] transition-colors flex-shrink-0"
+          style={{
+            width: 40, height: 40,
+            borderRadius: 10,
+            background: '#3b82f6',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            opacity: loading || !input.trim() ? 0.4 : 1,
+            flexShrink: 0,
+            transition: 'opacity 0.15s',
+          }}
         >
-          <Send size={14} />
+          <Send size={15} color="#fff" />
         </button>
       </div>
     </div>

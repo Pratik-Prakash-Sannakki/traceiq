@@ -1,126 +1,180 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Lightbulb, AlertCircle } from 'lucide-react'
+import { XCircle, AlertTriangle, Info, Zap } from 'lucide-react'
 import type { Issue } from '../api/client'
-import { cn } from '../lib/utils'
-import { CATEGORY_PILL } from '../lib/tokens'
 
-const CATEGORY_COLOR: Record<string, string> = {
-  failure: '#ef4444',
-  latency: '#f59e0b',
-  quality: '#8b5cf6',
-  logic:   '#3b82f6',
-}
+const CAT = {
+  failure: {
+    Icon: XCircle,
+    iconColor: '#f87171',
+    leftBg: '#1d0909',
+    rightBg: '#0d1525',
+    border: 'rgba(239,68,68,0.3)',
+    pillBg: 'rgba(239,68,68,0.15)',
+    pillColor: '#f87171',
+    pillLabel: 'Failure',
+  },
+  latency: {
+    Icon: AlertTriangle,
+    iconColor: '#fbbf24',
+    leftBg: '#1d1508',
+    rightBg: '#0d1525',
+    border: 'rgba(245,158,11,0.3)',
+    pillBg: 'rgba(245,158,11,0.15)',
+    pillColor: '#fbbf24',
+    pillLabel: 'Latency',
+  },
+  logic: {
+    Icon: Info,
+    iconColor: '#60a5fa',
+    leftBg: '#07111e',
+    rightBg: '#0d1525',
+    border: 'rgba(59,130,246,0.3)',
+    pillBg: 'rgba(59,130,246,0.15)',
+    pillColor: '#60a5fa',
+    pillLabel: 'Logic',
+  },
+  quality: {
+    Icon: Zap,
+    iconColor: '#a78bfa',
+    leftBg: '#0e0818',
+    rightBg: '#0d1525',
+    border: 'rgba(139,92,246,0.3)',
+    pillBg: 'rgba(139,92,246,0.15)',
+    pillColor: '#a78bfa',
+    pillLabel: 'Quality',
+  },
+} as const
 
 function IssueCard({ issue }: { issue: Issue }) {
-  const [open, setOpen] = useState(false)
-  const color = CATEGORY_COLOR[issue.category] ?? '#64748b'
+  const c    = CAT[issue.category as keyof typeof CAT] ?? CAT.logic
+  const Icon = c.Icon
+
+  const dot   = issue.explanation.indexOf('. ')
+  const title = dot > 0 ? issue.explanation.slice(0, dot + 1) : issue.explanation
+  const body  = dot > 0 ? issue.explanation.slice(dot + 2) : ''
 
   return (
-    <div
-      className="bg-[#0c1220] border border-[#1e293b] rounded-lg overflow-hidden"
-      style={{ borderLeft: `3px solid ${color}` }}
-    >
-      {/* Clickable header */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#0f1828] transition-colors"
-      >
-        <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0', CATEGORY_PILL[issue.category])}>
-          {issue.category.charAt(0).toUpperCase() + issue.category.slice(1)}
-        </span>
-        <span className="text-[11px] text-[#475569] font-mono bg-[#0f172a] border border-[#1e293b] rounded px-1.5 py-0.5 whitespace-nowrap flex-shrink-0">
-          {issue.span_name}
-        </span>
-        <span className="flex-1 text-[12px] text-[#94a3b8] truncate text-left">
-          {issue.explanation.split('.')[0]}.
-        </span>
-        <span className="flex-shrink-0 text-[#475569]">
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </span>
-      </button>
+    <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${c.border}` }}>
 
-      {/* Expanded body */}
-      {open && (
-        <div className="px-4 pb-4 border-t border-[#1e293b]">
-          <p className="text-[12px] text-[#94a3b8] leading-[1.7] pt-3">
-            {issue.explanation}
-          </p>
-          {issue.suggestion && (
-            <div className="mt-3 px-3 py-2.5 bg-[#0a1628] border border-blue-500/15 rounded-md">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Lightbulb size={9} className="text-[#3b82f6] flex-shrink-0" />
-                <span className="text-[9px] font-extrabold uppercase tracking-widest text-[#3b82f6]">Recommended Fix</span>
-              </div>
-              <p className="text-[12px] text-[#60a5fa] leading-[1.7]">{issue.suggestion}</p>
-            </div>
-          )}
+      {/* Left: icon only, no label */}
+      <div style={{
+        width: 52, flexShrink: 0,
+        background: c.leftBg,
+        borderRight: `1px solid ${c.border}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon size={17} strokeWidth={1.75} style={{ color: c.iconColor }} />
+      </div>
+
+      {/* Right content */}
+      <div style={{ flex: 1, minWidth: 0, background: c.rightBg, padding: '14px 18px' }}>
+        {/* Pill + span tag row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            padding: '2px 8px', borderRadius: 20,
+            background: c.pillBg, color: c.pillColor,
+            border: `1px solid ${c.border}`,
+          }}>
+            {c.pillLabel}
+          </span>
+          <span style={{
+            fontSize: 11, fontFamily: 'var(--mono)',
+            background: '#060e1a', border: '1px solid var(--line)',
+            borderRadius: 5, padding: '1px 7px', color: 'var(--t3)',
+            whiteSpace: 'nowrap',
+          }}>
+            {issue.span_name}
+          </span>
         </div>
-      )}
+
+        {/* Title */}
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', lineHeight: 1.5, marginBottom: body ? 8 : 0 }}>
+          {title}
+        </p>
+
+        {/* Body */}
+        {body && (
+          <p style={{ fontSize: 12, color: 'var(--t2)', lineHeight: 1.7, marginBottom: issue.suggestion ? 12 : 0 }}>
+            {body}
+          </p>
+        )}
+
+        {/* Recommended fix */}
+        {issue.suggestion && (
+          <div style={{ paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#3b82f6', marginBottom: 6 }}>
+              ◎ Recommended Fix
+            </p>
+            <p style={{ fontSize: 12, color: '#93c5fd', lineHeight: 1.7 }}>{issue.suggestion}</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 export function IssuePanel({ issues, rootCause, summary }: {
-  issues: Issue[]
+  issues:    Issue[]
   rootCause: string
-  summary: string
+  summary:   string
 }) {
-  const [rcaOpen, setRcaOpen] = useState(false)
-
   if (issues.length === 0) {
     return (
-      <div className="p-6 max-w-3xl">
-        <div className="flex items-center gap-2 text-[#4ade80] font-semibold mb-2">
-          <span>✓</span> No issues found
+      <div style={{ padding: '36px 40px' }}>
+        <div style={{ background: '#071a0e', border: '1px solid #1a4a28', borderRadius: 12, padding: '20px 24px' }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#4ade80', marginBottom: 8 }}>✓ No issues found</p>
+          <p style={{ fontSize: 13, color: 'var(--t2)', lineHeight: 1.75 }}>{summary}</p>
         </div>
-        <p className="text-[#64748b] text-[13px] leading-relaxed">{summary}</p>
       </div>
     )
   }
 
-  return (
-    <div className="p-5 space-y-4 max-w-3xl">
+  const m        = rootCause.match(/^(.+?[.!?])\s+(.+)$/s)
+  const headline = m ? m[1] : rootCause
+  const detail   = m ? m[2] : ''
 
-      {/* Root cause — compact with expand */}
-      <div
-        className="border border-red-500/25 rounded-lg overflow-hidden"
-        style={{ borderLeft: '3px solid #ef4444' }}
-      >
-        <button
-          onClick={() => setRcaOpen(o => !o)}
-          className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-red-500/3 transition-colors"
-        >
-          <AlertCircle size={14} className="text-[#f87171] flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <div className="text-[9px] font-bold uppercase tracking-widest text-[#f87171] mb-1">Root Cause</div>
-            <p className={cn(
-              'text-[12px] text-[#fca5a5] font-medium leading-snug',
-              !rcaOpen && 'line-clamp-2'
-            )}>
-              {rootCause}
-            </p>
-            {rcaOpen && (
-              <p className="text-[12px] text-[#94a3b8] leading-[1.7] mt-2">{summary}</p>
-            )}
-          </div>
-          <span className="text-[#f87171] flex-shrink-0 mt-0.5">
-            {rcaOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+  return (
+    <div style={{ padding: '36px 40px 60px' }}>
+
+      {/* Root cause — distinct card, full width */}
+      <div style={{
+        background: '#0c0e1f',
+        border: '1px solid #3b3f8c',
+        borderRadius: 12,
+        padding: '24px 28px',
+        marginBottom: 32,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#818cf8' }}>
+            Root Cause Identified
           </span>
-        </button>
+        </div>
+        {/* Full-width headline */}
+        <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.5, marginBottom: 14 }}>
+          {headline}
+        </p>
+        {/* Full-width detail */}
+        {(detail || summary) && (
+          <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.8 }}>
+            {detail || summary}
+          </p>
+        )}
       </div>
 
       {/* Diagnostics header */}
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold text-[#475569] uppercase tracking-widest">Diagnostics</span>
-        <span className="text-[10px] text-[#334155]">{issues.length} issue{issues.length !== 1 ? 's' : ''} found</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--t3)' }}>
+          Diagnostics
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--t3)' }}>{issues.length} issues found</span>
       </div>
 
-      {/* Issue cards — collapsed by default */}
-      <div className="space-y-2">
-        {issues.map(issue => (
-          <IssueCard key={issue.id} issue={issue} />
-        ))}
+      {/* Diagnostic cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {issues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
       </div>
+
     </div>
   )
 }

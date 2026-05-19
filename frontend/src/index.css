@@ -1,22 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --color-background:   #0a0f1e;
-  --color-sidebar:      #080d1a;
-  --color-surface:      #0c1220;
-  --color-surface-2:    #0f172a;
-  --color-border:       #1e293b;
-  --color-border-2:     #334155;
-  --color-text:         #f1f5f9;
-  --color-text-muted:   #64748b;
-  --color-text-subtle:  #334155;
-  --color-accent:       #3b82f6;
-  --color-accent-light: #60a5fa;
-  --color-failing:      #f87171;
-  --color-degraded:     #fbbf24;
-  --color-healthy:      #4ade80;
-  --color-tokens-high:  #f87171;
-  --color-tokens-ok:    #818cf8;
+:root {
+  --page:      #050e1c;
+  --sidebar:   #040b16;
+  --card:      #0d1f35;
+  --card-hi:   #152f50;
+  --line:      #1b3350;
+  --line-hi:   #254870;
+  --t1:        #f1f5f9;
+  --t2:        #94a3b8;
+  --t3:        #64748b;
+  --accent:    #3b82f6;
+  --font:      'IBM Plex Sans', system-ui, sans-serif;
+  --mono:      'IBM Plex Mono', monospace;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,7 +21,12 @@
 html, body, #root {
   height: 100%;
   overflow: hidden;
-  background: #0a0f1e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
-  color: #f1f5f9;
+  background: var(--page);
+  font-family: var(--font);
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
 }
+
+::-webkit-scrollbar       { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 2px; }
