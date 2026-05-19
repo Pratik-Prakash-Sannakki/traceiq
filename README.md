@@ -9,6 +9,7 @@ TraceIQ connects to your observability platform, analyzes traces with Claude, an
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
+[![Arize Phoenix](https://img.shields.io/badge/Arize-Phoenix-FF3B89?style=flat)](https://github.com/Arize-ai/phoenix)
 [![Claude](https://img.shields.io/badge/Powered%20by-Claude%20Sonnet-CC785C?style=flat)](https://anthropic.com)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat)](LICENSE)
 
@@ -32,11 +33,11 @@ You've deployed an LLM pipeline. Something is wrong — latency spikes, agent lo
 
 ```
 Your traces  →  TraceIQ  →  Root cause + issues + fixes
-(Phoenix or      (Claude)
- LangSmith)
+(Arize Phoenix  (Claude)
+ or LangSmith)
 ```
 
-1. **Connect** — point TraceIQ at your Phoenix or LangSmith project
+1. **Connect** — point TraceIQ at your Arize Phoenix or LangSmith project
 2. **Select** — pick any trace from the sidebar
 3. **Analyze** — Claude investigates the trace using a two-tier engine
 4. **Read** — get a structured diagnosis: root cause, categorized issues, recommended fixes
@@ -64,7 +65,7 @@ graph TB
     end
 
     subgraph Backend["FastAPI Backend"]
-        Adapters["Adapters\n──────────\nPhoenix\nLangSmith"]
+        Adapters["Adapters\n──────────\nArize Phoenix\nLangSmith"]
         Pipeline["Analysis Pipeline\n──────────────────\nTier 1: Fast\nTier 2: Deep Agent"]
         Cache["SQLite Cache\n──────────────\nAnalysis results\nChat history\nSettings"]
     end
@@ -88,7 +89,7 @@ graph TB
 
 ```mermaid
 flowchart TD
-    A([Select Trace]) --> B[Fetch Spans\nPhoenix / LangSmith API]
+    A([Select Trace]) --> B[Fetch Spans\nArize Phoenix / LangSmith API]
     B --> C{Classify by\nspan count}
 
     C -->|"< 50 spans"| T1
@@ -155,7 +156,7 @@ cp .env.example .env
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Phoenix (default source)
+# Arize Phoenix (default source)
 PHOENIX_URL=http://localhost:6006
 PHOENIX_PROJECT=default
 
@@ -176,13 +177,13 @@ Open [http://localhost:8000](http://localhost:8000) — that's it.
 
 ## Connecting a data source
 
-Click the **gear icon** in the top-left → choose **Phoenix** or **LangSmith** → enter your credentials → **Connect**.
+Click the **gear icon** in the top-left → choose **Arize Phoenix** or **LangSmith** → enter your credentials → **Connect**.
 
 TraceIQ tests the connection live and shows you how many traces it found before closing.
 
 | Provider | What you need |
 |----------|--------------|
-| 🔥 **Phoenix** | URL (e.g. `http://localhost:6006`) + project name |
+| **Arize Phoenix** | URL (e.g. `http://localhost:6006`) + project name |
 | 🦜 **LangSmith** | API key from smith.langchain.com → Settings → API Keys + project name |
 
 ---
@@ -265,7 +266,7 @@ traceiq/
 
 ## v0.1 — what's in scope
 
-- Phoenix and LangSmith adapters with correct root span name resolution
+- Arize Phoenix and LangSmith adapters with correct root span name resolution
 - Two-tier Claude analysis (direct for small traces, agentic for large ones)
 - Trace filtering by status, live search, P50/P99 stats
 - Structured issue cards with category icons, span tags, and recommended fixes
