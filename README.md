@@ -1,30 +1,146 @@
+<div align="center">
+
 # TraceIQ
 
-AI-powered root cause analysis for LLM application traces. Connect to Phoenix or LangSmith, select a trace, and get a structured diagnosis — issues, root cause, and recommended fixes — powered by Claude.
+**Stop guessing why your LLM app is broken. Get the answer in seconds.**
+
+TraceIQ connects to your observability platform, analyzes traces with Claude, and delivers a structured root cause diagnosis — issues, causes, and fixes — right in your browser.
+
+[![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev)
+[![Claude](https://img.shields.io/badge/Powered%20by-Claude%20Sonnet-CC785C?style=flat)](https://anthropic.com)
+[![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat)](LICENSE)
+
+</div>
 
 ---
 
-## What it does
-
-- **Connects** to Arize Phoenix or LangSmith and pulls your traces
-- **Analyzes** traces using a two-tier Claude-powered engine:
-  - Small traces → single Claude call with full span context
-  - Large traces → community detection + agentic multi-turn investigation
-- **Surfaces** root cause, categorized issues (Failure / Latency / Logic / Quality), and actionable fixes
-- **Chat** — ask follow-up questions about any trace in natural language
-- **Filters** traces by status (Failing / Degraded / Healthy) directly from the sidebar
+![TraceIQ Dashboard](assets/dashboard.png)
 
 ---
 
-## Stack
+## The problem
 
-| Layer | Tech |
-|-------|------|
-| Backend | FastAPI + Python 3.12 |
-| Analysis | Anthropic Claude (Sonnet) |
-| Frontend | React 19 + TypeScript + Vite + Tailwind v4 |
-| Storage | SQLite (analysis cache + settings) |
-| Observability | Arize Phoenix, LangSmith |
+You've deployed an LLM pipeline. Something is wrong — latency spikes, agent loops, bad outputs, token bloat. You have traces. You have spans. But turning 200 spans into a diagnosis takes hours of manual digging.
+
+**TraceIQ does that in seconds.**
+
+---
+
+## How it works
+
+```
+Your traces  →  TraceIQ  →  Root cause + issues + fixes
+(Phoenix or      (Claude)
+ LangSmith)
+```
+
+1. **Connect** — point TraceIQ at your Phoenix or LangSmith project
+2. **Select** — pick any trace from the sidebar
+3. **Analyze** — Claude investigates the trace using a two-tier engine
+4. **Read** — get a structured diagnosis: root cause, categorized issues, recommended fixes
+
+---
+
+## Screenshots
+
+### Diagnostics view
+![Diagnostics](assets/diagnostics.png)
+
+### Connection settings
+![Settings](assets/settings.png)
+
+---
+
+## System architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Browser (React)                          │
+│                                                                   │
+│  ┌──────────────┐   ┌────────────────────────────────────────┐  │
+│  │   Sidebar    │   │              Main Panel                 │  │
+│  │              │   │                                         │  │
+│  │ • Trace list │   │  ┌─────────────┐  ┌─────────────────┐  │  │
+│  │ • Status     │   │  │ Diagnostics │  │   Debug Chat    │  │  │
+│  │   filters    │   │  │             │  │                 │  │  │
+│  │ • Search     │   │  │ Root cause  │  │ Streaming chat  │  │  │
+│  │ • P50 / P99  │   │  │ Issue cards │  │ with Claude     │  │  │
+│  └──────────────┘   │  └─────────────┘  └─────────────────┘  │  │
+│                     └────────────────────────────────────────┘  │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │ HTTP / SSE
+┌───────────────────────────────▼─────────────────────────────────┐
+│                      FastAPI Backend                             │
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐  │
+│  │   Adapters   │  │  Analysis    │  │      SQLite Cache     │  │
+│  │              │  │  Pipeline    │  │                       │  │
+│  │ • Phoenix    │  │              │  │ • Analysis results    │  │
+│  │ • LangSmith  │  │ Tier 1: Fast │  │ • Chat history        │  │
+│  └──────┬───────┘  │ Tier 2: Deep │  │ • Settings            │  │
+│         │          └──────┬───────┘  └───────────────────────┘  │
+└─────────┼─────────────────┼───────────────────────────────────┘
+          │                 │
+   ┌──────▼──────┐   ┌──────▼──────┐
+   │   Phoenix   │   │   Claude    │
+   │  LangSmith  │   │  Sonnet API │
+   └─────────────┘   └─────────────┘
+```
+
+---
+
+## Analysis workflow
+
+```
+                        ┌─────────────┐
+                        │ Select Trace│
+                        └──────┬──────┘
+                               │
+                        ┌──────▼──────┐
+                        │ Fetch Spans │◄── Phoenix / LangSmith API
+                        └──────┬──────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  Classify Trace      │
+                    │  (span count)        │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              │                                 │
+    ┌─────────▼─────────┐           ┌───────────▼───────────┐
+    │   Tier 1: Small   │           │   Tier 2: Large       │
+    │   (< 50 spans)    │           │   (50+ spans)         │
+    │                   │           │                       │
+    │  Build graph      │           │  Build graph          │
+    │  Detect anomalies │           │  Detect anomalies     │
+    │  Load span content│           │  Community detection  │
+    │                   │           │  Loop compression     │
+    │  Single Claude    │           │                       │
+    │  call with full   │           │  Claude AGENT with    │
+    │  context          │           │  tools:               │
+    │                   │           │  • drill_span         │
+    │                   │           │  • search_spans       │
+    │                   │           │  • trace_causal_path  │
+    │                   │           │  • diff_iterations    │
+    │                   │           │  • finish_analysis    │
+    └─────────┬─────────┘           └───────────┬───────────┘
+              │                                 │
+              └────────────────┬────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  Structured Result   │
+                    │                     │
+                    │  • Root cause       │
+                    │  • Issues list      │
+                    │  • Recommendations  │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │   Cache + Return    │◄── SQLite
+                    └─────────────────────┘
+```
 
 ---
 
@@ -34,86 +150,83 @@ AI-powered root cause analysis for LLM application traces. Connect to Phoenix or
 
 - Python 3.12+
 - Node 18+
-- An [Anthropic API key](https://console.anthropic.com)
-- A running [Arize Phoenix](https://github.com/Arize-ai/phoenix) instance **or** a [LangSmith](https://smith.langchain.com) account
+- [Anthropic API key](https://console.anthropic.com)
+- [Arize Phoenix](https://github.com/Arize-ai/phoenix) running locally **or** a [LangSmith](https://smith.langchain.com) account
 
-### 1. Clone and install
+### Install
 
 ```bash
-git clone <repo>
+git clone https://github.com/Pratik-Prakash-Sannakki/traceiq.git
 cd traceiq
 
-# Backend
+# Backend dependencies
 uv sync
 
 # Frontend
 cd frontend && npm install && npm run build && cd ..
 ```
 
-### 2. Configure environment
+### Configure
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
-
 ```env
+# Required
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Phoenix (default)
+# Phoenix (default source)
 PHOENIX_URL=http://localhost:6006
 PHOENIX_PROJECT=default
 
-# LangSmith (optional)
+# LangSmith (switch in UI settings)
 LANGCHAIN_API_KEY=lsv2_pt_...
 LANGCHAIN_PROJECT=default
 ```
 
-### 3. Run
+### Run
 
 ```bash
 uv run --env-file .env uvicorn traceiq.api.app:create_app --factory --host 0.0.0.0 --port 8000
 ```
 
-Open [http://localhost:8000](http://localhost:8000).
+Open [http://localhost:8000](http://localhost:8000) — that's it.
 
 ---
 
 ## Connecting a data source
 
-Click the gear icon in the sidebar → select **Phoenix** or **LangSmith** → enter credentials → **Connect**.
+Click the **gear icon** in the top-left → choose **Phoenix** or **LangSmith** → enter your credentials → **Connect**.
 
-The connection is tested immediately — you will see how many traces were found before the modal closes.
+TraceIQ tests the connection live and shows you how many traces it found before closing.
 
-### Phoenix
-
-| Field | Value |
-|-------|-------|
-| Phoenix URL | `http://localhost:6006` (or your hosted URL) |
-| Project | Your Phoenix project name |
-
-### LangSmith
-
-| Field | Value |
-|-------|-------|
-| Host | `https://api.smith.langchain.com` |
-| API Key | Generate at smith.langchain.com → Settings → API Keys |
-| Project | Your LangSmith project name |
+| Provider | What you need |
+|----------|--------------|
+| 🔥 **Phoenix** | URL (e.g. `http://localhost:6006`) + project name |
+| 🦜 **LangSmith** | API key from smith.langchain.com → Settings → API Keys + project name |
 
 ---
 
-## How analysis works
+## Sidebar features
 
-**Tier 1 (fewer than 50 spans)** — Single Claude call with the full span graph, flagged anomalies, and span content.
+| Feature | How to use |
+|---------|-----------|
+| **Status filter** | Click Failing / Degraded / Healthy tiles to filter the trace list |
+| **Live search** | Type in the search box — filters by trace name or ID instantly |
+| **P50 / P99** | Aggregate latency percentiles shown in the trace header |
+| **Project name** | Updates instantly when you change data sources — no refresh needed |
 
-**Tier 2 (50+ spans)** — Multi-stage pipeline:
-1. Graph construction + anomaly detection (latency spikes, error cascades, token growth, loops)
-2. Community detection groups spans into functional clusters
-3. Community cards + loop compression summarises each cluster for the agent
-4. Claude agent with tools (`drill_span`, `search_spans`, `trace_causal_path`, `diff_iterations`, `finish_analysis`) investigates iteratively and submits structured findings
+---
 
-Results are cached in SQLite. Re-analyze any trace from the header.
+## Issue categories
+
+| Category | What it catches |
+|----------|----------------|
+| **Failure** | Error status spans, exception messages, crashes |
+| **Latency** | Slow spans, cascading latency, timeout patterns |
+| **Logic** | Agent loops, redundant calls, termination failures |
+| **Quality** | Token bloat, prompt size issues, context window growth |
 
 ---
 
@@ -122,25 +235,69 @@ Results are cached in SQLite. Re-analyze any trace from the header.
 ```
 traceiq/
 ├── src/traceiq/
-│   ├── adapters/        # Phoenix + LangSmith connectors
-│   ├── analysis/        # Claude analysis engine + agent
-│   ├── api/             # FastAPI routes, pipeline, settings
-│   ├── cache/           # SQLite cache
-│   ├── graph/           # Graph builder, anomaly detection, communities
-│   └── models.py        # Shared dataclasses
-├── frontend/            # React app (Vite + TypeScript)
-└── .env                 # Local config (gitignored)
+│   ├── adapters/
+│   │   ├── base.py          # TraceAdapter interface
+│   │   ├── phoenix.py       # Arize Phoenix connector
+│   │   └── langsmith.py     # LangSmith connector
+│   ├── analysis/
+│   │   ├── engine.py        # Tier 1: single-call analysis
+│   │   ├── agent.py         # Tier 2: agentic multi-turn analysis
+│   │   ├── community_card.py
+│   │   └── loop_dedup.py
+│   ├── graph/
+│   │   ├── builder.py       # Span graph construction
+│   │   ├── anomaly.py       # Anomaly detection rules
+│   │   ├── classifier.py    # Tier 1 vs Tier 2 decision
+│   │   └── community.py     # Louvain community detection
+│   ├── api/
+│   │   ├── app.py           # FastAPI app factory
+│   │   ├── routes.py        # API endpoints
+│   │   └── pipeline.py      # Adapter + engine wiring
+│   ├── cache/
+│   │   └── db.py            # SQLite cache
+│   └── models.py            # Shared dataclasses
+├── frontend/
+│   └── src/
+│       ├── App.tsx
+│       ├── components/
+│       │   ├── TraceList.tsx
+│       │   ├── IssuePanel.tsx
+│       │   ├── Chat.tsx
+│       │   └── Settings.tsx
+│       └── api/client.ts
+├── assets/                  # README screenshots
+└── .env                     # Local config (gitignored)
 ```
 
 ---
 
-## v0.1
+## API reference
 
-- Phoenix and LangSmith adapters
-- Two-tier analysis engine (Tier 1 direct, Tier 2 agentic)
-- Trace list with status filter and live search
-- Per-trace diagnostics: root cause, categorized issues, recommended fixes
-- Debug chat per trace
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/traces` | List traces from connected source |
+| `GET /api/traces/{id}/analysis` | Get (or run) analysis for a trace |
+| `POST /api/traces/{id}/chat` | Stream a chat response (SSE) |
+| `GET /api/settings` | Read current connection settings |
+| `POST /api/settings` | Save connection settings |
+| `POST /api/test-connection` | Validate current adapter credentials |
+
+---
+
+## v0.1 — what's in scope
+
+- Phoenix and LangSmith adapters with correct root span name resolution
+- Two-tier Claude analysis (direct for small traces, agentic for large ones)
+- Trace filtering by status, live search, P50/P99 stats
+- Structured issue cards with category icons, span tags, and recommended fixes
+- Debug chat per trace with streaming responses
 - Settings modal with live connection test
-- Analysis result caching
-- Project-level P50/P99 latency stats
+- Analysis result caching (SQLite)
+
+---
+
+<div align="center">
+
+Built by [Pratik Sannakki](https://github.com/Pratik-Prakash-Sannakki) · Powered by [Claude](https://anthropic.com)
+
+</div>
