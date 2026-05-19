@@ -4,7 +4,7 @@
 
 **Stop guessing why your LLM app is broken. Get the answer in seconds.**
 
-TraceIQ connects to your observability platform, analyzes traces with Claude, and delivers a structured root cause diagnosis — issues, causes, and fixes — right in your browser.
+TraceIQ is an open-source root cause analysis tool for LLM pipelines. Connect it to your observability platform, select any trace, and get a structured diagnosis — root cause, categorized issues, and concrete fixes — powered by Claude.
 
 [![Python](https://img.shields.io/badge/Python-3.12+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -21,81 +21,92 @@ TraceIQ connects to your observability platform, analyzes traces with Claude, an
 
 ---
 
-## The problem
+## What is TraceIQ?
 
-You've deployed an LLM pipeline. Something is wrong — latency spikes, agent loops, bad outputs, token bloat. You have traces. You have spans. But turning 200 spans into a diagnosis takes hours of manual digging.
+Debugging LLM pipelines is painful. You have observability — Phoenix, LangSmith — but raw spans don't tell you *why* something is broken. You end up manually correlating hundreds of spans, guessing at root causes, and spending hours on what should take minutes.
 
-**TraceIQ does that in seconds.**
-
----
-
-## How it works
-
-```
-Your traces  →  TraceIQ  →  Root cause + issues + fixes
-(Arize Phoenix  (Claude)
- or LangSmith)
-```
-
-1. **Connect** — point TraceIQ at your Arize Phoenix or LangSmith project
-2. **Select** — pick any trace from the sidebar
-3. **Analyze** — Claude investigates the trace using a two-tier engine
-4. **Read** — get a structured diagnosis: root cause, categorized issues, recommended fixes
+TraceIQ closes that gap. It reads your traces, builds a span graph, detects anomalies, and uses Claude to reason across the entire trace — then delivers a plain-English diagnosis anyone can understand. Not just engineers. Product managers, founders, QA leads — anyone who needs to know what went wrong can open TraceIQ and get the answer.
 
 ---
 
-## Screenshots
+## Demo
 
-### Dashboard
-![Dashboard](assets/dashboard.png)
+> [Watch the full walkthrough](assets/demo.mp4) — connecting to Arize Phoenix, analyzing a RAG pipeline trace, debug chat, switching to LangSmith.
+
+---
+
+## Features
+
+### Supported Adapters
+
+| Adapter | What it connects to | What you need |
+|---------|-------------------|---------------|
+| **Arize Phoenix** | Self-hosted Phoenix instance | Phoenix URL (e.g. `http://localhost:6006`) + project name |
+| **LangSmith** | LangChain's cloud tracing platform | API key from smith.langchain.com + project name |
+
+Switch between adapters at any time from the settings modal — no restart required.
+
+---
 
 ### Diagnostics
+
 ![Diagnostics](assets/diagnostics.png)
 
-When you select a trace, TraceIQ runs it through the analysis engine and surfaces a structured diagnosis. At the top is a **Root Cause card** — a concise explanation of the single most impactful span or pattern driving the problem, with a detailed narrative of how it cascades into downstream issues. Below that are **issue cards**, one per detected problem, each categorized as Failure, Latency, Logic, or Quality. Every card shows the affected span, an explanation of what went wrong and why it matters, and a concrete recommended fix. The number of issues found is shown on the tab badge so you know immediately how much is wrong before you read a word.
+When you select a trace, TraceIQ runs it through the analysis engine and surfaces a full diagnosis:
+
+- **Root Cause card** — identifies the single most impactful span or pattern driving the problem and explains how it cascades into downstream issues
+- **Issue cards** — one card per detected problem, each with the affected span, an explanation of what went wrong, and a concrete recommended fix
+- **Issue count badge** — visible on the tab so you know how many problems exist before reading a word
+
+Every issue is categorized:
+
+| Category | What it catches |
+|----------|----------------|
+| **Failure** | Error status spans, exception messages, crashes |
+| **Latency** | Slow spans, cascading latency, timeout patterns |
+| **Logic** | Agent loops, redundant calls, termination failures |
+| **Quality** | Token bloat, prompt size issues, context window growth |
+
+---
 
 ### Debug Chat
+
 ![Debug Chat](assets/chat.png)
 
-The Debug Chat tab gives you a direct line to Claude with full context of the selected trace already loaded — the spans, the graph, and the completed analysis are all in its context window. You can ask anything about the trace in plain language: why a specific span was slow, what a particular error means, how to reproduce the issue, or what the fix would look like in code. Responses stream in real time. The full conversation is persisted per trace so you can come back to it later without losing the thread.
+A direct line to Claude with the full trace already loaded — spans, graph, and completed analysis are all in context. Ask anything in plain language:
 
-### Connection settings
+- *"The 3 retrievers are sequential — if I parallelize them, what latency should I realistically expect?"*
+- *"Which single code change cuts the most latency?"*
+- *"What's wrong with the should_continue logic in this agent loop?"*
+
+Responses stream in real time. Conversations are persisted per trace so you can return to them later.
+
+---
+
+### Trace Sidebar
+
+![Dashboard](assets/dashboard.png)
+
+- **Status filter tiles** — click Failing / Degraded / Healthy to instantly filter the trace list
+- **Live search** — filter traces by name or ID as you type
+- **P50 / P99** — aggregate latency percentiles across all loaded traces
+- **Project name** — updates instantly when you switch data sources
+
+---
+
+### Connection Settings
+
 ![Settings](assets/settings.png)
 
----
-
-## System architecture
-
-```mermaid
-graph TB
-    subgraph Browser["Browser (React)"]
-        Sidebar["Sidebar\n──────────\nTrace list\nStatus filters\nSearch\nP50 / P99"]
-        Diagnostics["Diagnostics Panel\n──────────────────\nRoot cause card\nIssue cards"]
-        Chat["Debug Chat\n────────────\nStreaming chat\nwith Claude"]
-    end
-
-    subgraph Backend["FastAPI Backend"]
-        Adapters["Adapters\n──────────\nArize Phoenix\nLangSmith"]
-        Pipeline["Analysis Pipeline\n──────────────────\nTier 1: Fast\nTier 2: Deep Agent"]
-        Cache["SQLite Cache\n──────────────\nAnalysis results\nChat history\nSettings"]
-    end
-
-    subgraph External["External Services"]
-        Traces["Trace Sources\n──────────────\nArize Phoenix\nLangSmith"]
-        Claude["Claude API\n──────────────\nSonnet model"]
-    end
-
-    Browser -->|"HTTP / REST"| Backend
-    Diagnostics -->|"SSE streaming"| Pipeline
-    Adapters -->|"REST API"| Traces
-    Pipeline -->|"Anthropic SDK"| Claude
-    Pipeline -->|"read / write"| Cache
-    Adapters --> Pipeline
-```
+- Switch between Arize Phoenix and LangSmith from the settings modal
+- TraceIQ tests the connection live and shows trace count before closing
+- Settings are persisted — reconnects automatically on restart
 
 ---
 
-## Analysis workflow
+## How the analysis works
+
+TraceIQ uses a two-tier engine that scales with trace complexity:
 
 ```mermaid
 flowchart TD
@@ -132,6 +143,43 @@ flowchart TD
     S --> OUT([Return to UI])
 ```
 
+**Tier 1 (< 50 spans):** builds the span graph, flags anomalies, loads flagged span content, and makes a single Claude call with full context.
+
+**Tier 2 (≥ 50 spans):** runs Louvain community detection to group the span graph into functional clusters, compresses repeated loop iterations, then hands a Claude agent a set of tools to actively investigate — drilling into spans, tracing causal paths, diffing iterations — before calling `finish_analysis` to submit the result.
+
+Results are cached in SQLite so re-selecting a trace is instant.
+
+---
+
+## System architecture
+
+```mermaid
+graph TB
+    subgraph Browser["Browser (React)"]
+        Sidebar["Sidebar\n──────────\nTrace list\nStatus filters\nSearch\nP50 / P99"]
+        Diagnostics["Diagnostics Panel\n──────────────────\nRoot cause card\nIssue cards"]
+        Chat["Debug Chat\n────────────\nStreaming chat\nwith Claude"]
+    end
+
+    subgraph Backend["FastAPI Backend"]
+        Adapters["Adapters\n──────────\nArize Phoenix\nLangSmith"]
+        Pipeline["Analysis Pipeline\n──────────────────\nTier 1: Fast\nTier 2: Deep Agent"]
+        Cache["SQLite Cache\n──────────────\nAnalysis results\nChat history\nSettings"]
+    end
+
+    subgraph External["External Services"]
+        Traces["Trace Sources\n──────────────\nArize Phoenix\nLangSmith"]
+        Claude["Claude API\n──────────────\nSonnet model"]
+    end
+
+    Browser -->|"HTTP / REST"| Backend
+    Diagnostics -->|"SSE streaming"| Pipeline
+    Adapters -->|"REST API"| Traces
+    Pipeline -->|"Anthropic SDK"| Claude
+    Pipeline -->|"read / write"| Cache
+    Adapters --> Pipeline
+```
+
 ---
 
 ## Getting started
@@ -149,7 +197,7 @@ flowchart TD
 git clone https://github.com/Pratik-Prakash-Sannakki/traceiq.git
 cd traceiq
 
-# Backend dependencies
+# Backend
 uv sync
 
 # Frontend
@@ -162,18 +210,22 @@ cd frontend && npm install && npm run build && cd ..
 cp .env.example .env
 ```
 
+Edit `.env`:
+
 ```env
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Arize Phoenix (default source)
+# Arize Phoenix (default adapter)
 PHOENIX_URL=http://localhost:6006
 PHOENIX_PROJECT=default
 
-# LangSmith (switch in UI settings)
+# LangSmith (switch to this in the UI settings)
 LANGCHAIN_API_KEY=lsv2_pt_...
 LANGCHAIN_PROJECT=default
 ```
+
+You only need to configure the adapter you plan to use. The other can be left blank and set later from the UI.
 
 ### Run
 
@@ -181,42 +233,20 @@ LANGCHAIN_PROJECT=default
 uv run --env-file .env uvicorn traceiq.api.app:create_app --factory --host 0.0.0.0 --port 8000
 ```
 
-Open [http://localhost:8000](http://localhost:8000) — that's it.
+Open [http://localhost:8000](http://localhost:8000). Click the gear icon to connect your first data source.
 
 ---
 
-## Connecting a data source
+## API reference
 
-Click the **gear icon** in the top-left → choose **Arize Phoenix** or **LangSmith** → enter your credentials → **Connect**.
-
-TraceIQ tests the connection live and shows you how many traces it found before closing.
-
-| Provider | What you need |
-|----------|--------------|
-| **Arize Phoenix** | URL (e.g. `http://localhost:6006`) + project name |
-| 🦜 **LangSmith** | API key from smith.langchain.com → Settings → API Keys + project name |
-
----
-
-## Sidebar features
-
-| Feature | How to use |
-|---------|-----------|
-| **Status filter** | Click Failing / Degraded / Healthy tiles to filter the trace list |
-| **Live search** | Type in the search box — filters by trace name or ID instantly |
-| **P50 / P99** | Aggregate latency percentiles shown in the trace header |
-| **Project name** | Updates instantly when you change data sources — no refresh needed |
-
----
-
-## Issue categories
-
-| Category | What it catches |
-|----------|----------------|
-| **Failure** | Error status spans, exception messages, crashes |
-| **Latency** | Slow spans, cascading latency, timeout patterns |
-| **Logic** | Agent loops, redundant calls, termination failures |
-| **Quality** | Token bloat, prompt size issues, context window growth |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/traces` | `GET` | List traces from the connected adapter |
+| `/api/traces/{id}/analysis` | `GET` | Get cached analysis or run a new one (`?reanalyze=true` to force) |
+| `/api/traces/{id}/chat` | `POST` | Stream a chat response (SSE) |
+| `/api/settings` | `GET` | Read current adapter settings |
+| `/api/settings` | `POST` | Save adapter settings and switch provider |
+| `/api/test-connection` | `POST` | Live-test the current adapter credentials |
 
 ---
 
@@ -230,7 +260,7 @@ traceiq/
 │   │   ├── phoenix.py       # Arize Phoenix connector
 │   │   └── langsmith.py     # LangSmith connector
 │   ├── analysis/
-│   │   ├── engine.py        # Tier 1: single-call analysis
+│   │   ├── engine.py        # Tier 1: single Claude call
 │   │   ├── agent.py         # Tier 2: agentic multi-turn analysis
 │   │   ├── community_card.py
 │   │   └── loop_dedup.py
@@ -255,33 +285,23 @@ traceiq/
 │       │   ├── Chat.tsx
 │       │   └── Settings.tsx
 │       └── api/client.ts
-├── assets/                  # README screenshots
-└── .env                     # Local config (gitignored)
+├── assets/
+└── .env
 ```
-
----
-
-## API reference
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/traces` | List traces from connected source |
-| `GET /api/traces/{id}/analysis` | Get (or run) analysis for a trace |
-| `POST /api/traces/{id}/chat` | Stream a chat response (SSE) |
-| `GET /api/settings` | Read current connection settings |
-| `POST /api/settings` | Save connection settings |
-| `POST /api/test-connection` | Validate current adapter credentials |
 
 ---
 
 ## v0.1 — what's in scope
 
+This is v0.1 — the foundation. More adapters, deeper analysis, and a better UI are all on the roadmap.
+
 - Arize Phoenix and LangSmith adapters with correct root span name resolution
 - Two-tier Claude analysis (direct for small traces, agentic for large ones)
-- Trace filtering by status, live search, P50/P99 stats
+- Louvain community detection and loop deduplication for large traces
+- Trace filtering by status, live search, P50/P99 latency stats
 - Structured issue cards with category icons, span tags, and recommended fixes
-- Debug chat per trace with streaming responses
-- Settings modal with live connection test
+- Debug chat per trace with full context and streaming responses
+- Settings modal with live connection test and instant adapter switching
 - Analysis result caching (SQLite)
 
 ---
