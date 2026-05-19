@@ -46,8 +46,18 @@ Your traces  →  TraceIQ  →  Root cause + issues + fixes
 
 ## Screenshots
 
-### Diagnostics view
+### Dashboard
+![Dashboard](assets/dashboard.png)
+
+### Diagnostics
 ![Diagnostics](assets/diagnostics.png)
+
+When you select a trace, TraceIQ runs it through the analysis engine and surfaces a structured diagnosis. At the top is a **Root Cause card** — a concise explanation of the single most impactful span or pattern driving the problem, with a detailed narrative of how it cascades into downstream issues. Below that are **issue cards**, one per detected problem, each categorized as Failure, Latency, Logic, or Quality. Every card shows the affected span, an explanation of what went wrong and why it matters, and a concrete recommended fix. The number of issues found is shown on the tab badge so you know immediately how much is wrong before you read a word.
+
+### Debug Chat
+![Debug Chat](assets/chat.png)
+
+The Debug Chat tab gives you a direct line to Claude with full context of the selected trace already loaded — the spans, the graph, and the completed analysis are all in its context window. You can ask anything about the trace in plain language: why a specific span was slow, what a particular error means, how to reproduce the issue, or what the fix would look like in code. Responses stream in real time. The full conversation is persisted per trace so you can come back to it later without losing the thread.
 
 ### Connection settings
 ![Settings](assets/settings.png)
