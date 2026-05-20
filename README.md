@@ -25,7 +25,19 @@ TraceIQ is an open-source root cause analysis tool for LLM pipelines. Connect it
 
 Debugging LLM pipelines is painful. You have observability — Phoenix, LangSmith — but raw spans don't tell you *why* something is broken. You end up manually correlating hundreds of spans, guessing at root causes, and spending hours on what should take minutes.
 
-TraceIQ closes that gap. It reads your traces, builds a span graph, detects anomalies, and uses Claude to reason across the entire trace — then delivers a plain-English diagnosis anyone can understand. Not just engineers. Product managers, founders, QA leads — anyone who needs to know what went wrong can open TraceIQ and get the answer.
+TraceIQ closes that gap. It reads your traces, builds a span graph, detects anomalies, and uses Claude to reason across the entire trace — then delivers a plain-English diagnosis in seconds.
+
+### Who is it for?
+
+TraceIQ is not just an engineering tool. Anyone who needs to understand what's happening inside an agentic pipeline — without reading raw spans — can open TraceIQ and get a clear answer.
+
+| Who | How they use it |
+|-----|----------------|
+| **Engineers** | Pinpoint root causes, get specific fixes, ask follow-up questions about individual spans |
+| **Tech managers** | Understand why an AI feature is slow or breaking without needing to read trace data |
+| **Founders** | Explain to investors exactly what went wrong last week, with evidence |
+| **QA leads** | File precise bug reports backed by a structured diagnosis instead of vague descriptions |
+| **Anyone on the team** | Get a plain-English answer about what an agentic pipeline actually did — and why it failed |
 
 ---
 
